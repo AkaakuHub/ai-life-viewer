@@ -1,4 +1,6 @@
-import { HOUR } from "../../shared/timeline.ts";
+import { DAY, HOUR } from "../../shared/timeline.ts";
+
+import type { View } from "./period.ts";
 
 const timeZone = "Asia/Tokyo";
 export const date = new Intl.DateTimeFormat("ja-JP", {
@@ -6,6 +8,28 @@ export const date = new Intl.DateTimeFormat("ja-JP", {
   month: "numeric",
   day: "numeric",
 });
+export const dayNumber = new Intl.DateTimeFormat("en", { timeZone, day: "numeric" });
+export const monthNumber = new Intl.DateTimeFormat("ja-JP", { timeZone, month: "long" });
+const monthName = new Intl.DateTimeFormat("ja-JP", {
+  timeZone,
+  year: "numeric",
+  month: "long",
+});
+const yearName = new Intl.DateTimeFormat("ja-JP", { timeZone, year: "numeric" });
+
+export function rangeLabel(view: View, start: number, end: number) {
+  switch (view) {
+    case "year":
+      return yearName.format(start);
+    case "month":
+      return monthName.format(start);
+    case "week":
+      return `${date.format(start)} - ${date.format(end - DAY)}`;
+    case "day":
+      return `${date.format(start)} (${weekday.format(start)})`;
+  }
+}
+
 export const weekday = new Intl.DateTimeFormat("ja-JP", { timeZone, weekday: "short" });
 export const clock = new Intl.DateTimeFormat("ja-JP", {
   timeZone,

@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import type { Block, FilterOptions, GroupTotal, Summary } from "../../shared/timeline.ts";
-import { clock, date, hours, weekday } from "./format.ts";
+import { clock, date, hours, monthNumber, weekday } from "./format.ts";
+
+import { monthTotals } from "./period.ts";
 
 export function Panel({
   title,
@@ -116,8 +118,10 @@ function Breakdown({ title, totals }: { title: string; totals: GroupTotal[] }) {
   );
 }
 
-export function SummaryContent({ summary }: { summary: Summary }) {
-  const max = Math.max(1, ...summary.days.map(({ ms }) => ms));
+export function SummaryContent({ summary, yearStart }: { summary: Summary; yearStart?: number }) {
+  const monthly = yearStart !== undefined;
+  const totals = monthly ? monthTotals(yearStart, summary.days) : summary.days;
+  const max = Math.max(1, ...totals.map(({ ms }) => ms));
   return (
     <div className="summary">
       <div className="total">
@@ -125,12 +129,12 @@ export function SummaryContent({ summary }: { summary: Summary }) {
         <strong>{hours(summary.totalMs)}</strong>
       </div>
       <section>
-        <h3>日別</h3>
+        <h3>{monthly ? "月別" : "日別"}</h3>
         <ul className="daily-chart">
-          {summary.days.map(({ day, ms }) => (
+          {totals.map(({ day, ms }) => (
             <li key={day}>
               <span>
-                {date.format(day)} ({weekday.format(day)})
+                {monthly ? monthNumber.format(day) : `${date.format(day)} (${weekday.format(day)})`}
               </span>
               <div className="bar-track">
                 <div style={{ width: `${(ms / max) * 100}%` }} />

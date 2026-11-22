@@ -1,4 +1,4 @@
-import { DAY, dayStart, type Block } from "../../shared/timeline.ts";
+import { DAY, type Block } from "../../shared/timeline.ts";
 
 export type Segment = {
   block: Block;
@@ -7,12 +7,6 @@ export type Segment = {
   lane: number;
   lanes: number;
 };
-
-export function weekStart(time: number) {
-  const day = dayStart(time);
-  const weekday = new Date(day + DAY / 2).getUTCDay();
-  return day - weekday * DAY;
-}
 
 export function partition(blocks: Block[], day: number): Segment[] {
   const segments = blocks

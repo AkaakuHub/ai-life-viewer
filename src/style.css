@@ -231,6 +231,11 @@ h1 {
   background: color-mix(in srgb, var(--accent) 43%, #151b29);
 }
 .block-time {
+  display: inline-block;
+  vertical-align: top;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--accent);
   white-space: nowrap;
   font-weight: 650;
@@ -318,6 +323,7 @@ fieldset {
   gap: 6px;
 }
 .search-field input {
+  min-width: 0;
   background: #101620;
   border: 1px solid #343e52;
   border-radius: 6px;
