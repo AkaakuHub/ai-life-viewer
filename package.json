@@ -3,15 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
-    "build": "vp build",
     "typecheck": "tsgo --noEmit",
-    "lint": "oxlint",
-    "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check",
-    "knip": "knip",
-    "check": "npm run typecheck && npm run lint && npm run fmt:check && npm run knip",
-    "test": "node --test src/calendar/layout.test.ts"
+    "knip": "knip"
   },
   "dependencies": {
     "lucide-react": "^1.77.0",
@@ -32,14 +25,16 @@
     "@vitejs/plugin-react": "^6.3.0",
     "knip": "^6.47.0",
     "lefthook": "^2.2.2",
-    "oxfmt": "^0.79.0",
-    "oxlint": "^1.94.0",
     "tailwindcss": "^4.3.5",
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
     "vite-plus": "1.4.0"
   },
-  "overrides": {
-    "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
-    "vitest": "5.0.5"
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.1.1",
+      "onFail": "download"
+    }
   },
   "engines": {
     "node": ">=24.0.0"

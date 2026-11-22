@@ -1,14 +1,12 @@
 pre-commit:
   parallel: true
   commands:
-    format:
-      run: npm run fmt:check
-    lint:
-      run: npm run lint
+    frontend:
+      run: vp check --deny-warnings
     types:
-      run: npm run typecheck
+      run: vp run typecheck
     dependencies:
-      run: npm run knip
+      run: vp run knip
     go-format:
       run: test -z "$(gofmt -l cmd internal)"
     go-vet:

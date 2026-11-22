@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vite-plus/test";
 import { DAY, MINUTE, type Block } from "../../shared/timeline.ts";
 import { partition, weekStart } from "./layout.ts";
 
