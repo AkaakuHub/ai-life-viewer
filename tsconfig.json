@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "strict": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["vite-plus/client", "node"]
+  },
+  "include": ["src", "shared", "vite.config.ts"]
+}

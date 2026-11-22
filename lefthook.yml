@@ -1,0 +1,15 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      run: npm run fmt:check
+    lint:
+      run: npm run lint
+    types:
+      run: npm run typecheck
+    dependencies:
+      run: npm run knip
+    go-format:
+      run: test -z "$(gofmt -l cmd internal)"
+    go-vet:
+      run: go vet ./...
