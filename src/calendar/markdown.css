@@ -1,0 +1,68 @@
+.markdown {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.markdown > * + * {
+  margin-block-start: 0.8em;
+}
+.markdown :is(h1, h2, h3, h4, h5, h6) {
+  font-weight: 700;
+  line-height: 1.35;
+}
+.markdown h1 {
+  font-size: 1.4em;
+}
+.markdown h2 {
+  font-size: 1.25em;
+}
+.markdown :is(ul, ol) {
+  padding-inline-start: 1.4em;
+}
+.markdown ul {
+  list-style: disc;
+}
+.markdown ol {
+  list-style: decimal;
+}
+.markdown li + li {
+  margin-block-start: 0.25em;
+}
+.markdown a {
+  color: #a8c5ff;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.markdown code {
+  padding: 0.1em 0.25em;
+  color: #dbd0ff;
+  background: #101620;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.markdown pre {
+  padding: 0.7em;
+  overflow-x: auto;
+  background: #101620;
+  border: 1px solid #343e52;
+  border-radius: 6px;
+}
+.markdown pre code {
+  padding: 0;
+  background: none;
+  overflow-wrap: normal;
+}
+.markdown blockquote {
+  padding-inline-start: 0.75em;
+  border-inline-start: 3px solid #52638c;
+  color: var(--muted);
+}
+.markdown table {
+  display: block;
+  overflow-x: auto;
+}
+.markdown :is(td, th) {
+  padding: 0.25em 0.5em;
+  border: 1px solid #343e52;
+}

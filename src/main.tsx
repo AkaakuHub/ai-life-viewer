@@ -11,6 +11,7 @@ import {
 } from "../shared/timeline.ts";
 import { date, weekday } from "./calendar/format.ts";
 import { Grid } from "./calendar/Grid.tsx";
+import { Markdown } from "./calendar/Markdown.tsx";
 import { weekStart } from "./calendar/layout.ts";
 import {
   BlockDetails,
@@ -27,7 +28,9 @@ type View = "week" | "day";
 function App() {
   const [now, setNow] = useState(Date.now);
   const [anchor, setAnchor] = useState(Date.now);
-  const [view, setView] = useState<View>("week");
+  const [view, setView] = useState<View>(() =>
+    window.matchMedia("(max-width: 600px)").matches ? "day" : "week",
+  );
   const [panel, setPanel] = useState<"filters" | "summary" | Block>();
   const [selection, setSelection] = useState<Selection>({ agents: [], projects: [], q: "" });
   useEffect(() => {
@@ -148,7 +151,7 @@ function App() {
         </Panel>
       )}
       {typeof panel === "object" && (
-        <Panel title={panel.title} close={() => setPanel(undefined)}>
+        <Panel title={<Markdown>{panel.title}</Markdown>} close={() => setPanel(undefined)} wide>
           <BlockDetails block={panel} />
         </Panel>
       )}

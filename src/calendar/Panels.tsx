@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import type { Block, FilterOptions, GroupTotal, Summary } from "../../shared/timeline.ts";
 import { clock, date, hours, weekday } from "./format.ts";
@@ -9,12 +9,13 @@ export function Panel({
   children,
   wide = false,
 }: {
-  title: string;
+  title: ReactNode;
   close: () => void;
   children: ReactNode;
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
@@ -24,14 +25,16 @@ export function Panel({
     <dialog
       ref={ref}
       className={wide ? "panel wide" : "panel"}
-      aria-label={title}
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
         close();
       }}
     >
       <div className="panel-heading">
-        <h2>{title}</h2>
+        <div id={titleId} className="panel-title">
+          {typeof title === "string" ? <h2>{title}</h2> : title}
+        </div>
         <button className="icon-button" type="button" aria-label="閉じる" onClick={close}>
           <X size={19} />
         </button>

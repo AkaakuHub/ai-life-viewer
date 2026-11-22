@@ -10,6 +10,7 @@
   --muted: #9caac2;
   --hour: 76px;
   --axis: 65px;
+  --day-width: 110px;
   font-variant-numeric: tabular-nums;
 }
 body {
@@ -41,7 +42,6 @@ h1 {
   margin: 0;
   font-weight: 700;
   font-size: 16px;
-  white-space: nowrap;
 }
 .navigation,
 .toolbar-actions,
@@ -50,6 +50,12 @@ h1 {
   display: flex;
   align-items: center;
   gap: 7px;
+}
+.navigation,
+.toolbar-actions {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 .toolbar-actions {
   margin-left: auto;
@@ -61,6 +67,7 @@ h1 {
   align-items: center;
   justify-content: center;
   gap: 7px;
+  flex-shrink: 0;
   min-height: 35px;
   border-radius: 7px;
   padding: 0 11px;
@@ -100,6 +107,7 @@ h1 {
   background: transparent;
 }
 .range {
+  flex-shrink: 0;
   margin-inline: 5px;
   font-size: 17px;
   font-weight: 650;
@@ -107,11 +115,13 @@ h1 {
 }
 .calendar-scroll {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
   scrollbar-color: #33415a #101620;
 }
 .calendar {
-  min-width: calc(var(--axis) + var(--days) * 105px);
+  min-width: calc(var(--axis) + var(--days) * var(--day-width));
 }
 .calendar-head,
 .calendar-body {
@@ -142,6 +152,12 @@ h1 {
 .day-head[data-today="true"] {
   background: #23304a;
 }
+.day-date {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
 .weekday {
   font-size: 12px;
   color: var(--muted);
@@ -157,6 +173,7 @@ h1 {
   font-weight: 650;
 }
 .day-hours {
+  white-space: nowrap;
   color: var(--muted);
   font-size: 12px;
   margin-left: auto;
@@ -196,7 +213,6 @@ h1 {
   position: absolute;
   display: flex;
   align-items: flex-start;
-  gap: 5px;
   overflow: hidden;
   min-width: 0;
   background: color-mix(in srgb, var(--accent) 20%, #151b29);
@@ -219,10 +235,9 @@ h1 {
   white-space: nowrap;
   font-weight: 650;
 }
-.block-title {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.block-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .now-line {
   position: absolute;
@@ -266,15 +281,22 @@ h1 {
   gap: 16px;
   margin-bottom: 17px;
 }
+.panel-title {
+  min-width: 0;
+}
+.panel-title > .markdown > p:first-child {
+  font-size: 16px;
+  font-weight: 650;
+}
 .panel-heading button {
   flex-shrink: 0;
 }
-.panel h2 {
+.panel-title > h2 {
   font-size: 18px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
-.panel h3 {
+.summary h3 {
   font-size: 14px;
   font-weight: 650;
   margin-bottom: 8px;
@@ -383,6 +405,10 @@ fieldset {
   color: #ff909c;
 }
 @media (max-width: 780px) {
+  :root {
+    --axis: 52px;
+    --day-width: 130px;
+  }
   .toolbar {
     gap: 9px;
     padding: 9px 10px;
@@ -401,5 +427,41 @@ fieldset {
     left: 0;
     z-index: 1;
     background: var(--surface);
+  }
+}
+
+@media (max-width: 600px) {
+  .toolbar {
+    padding: 10px 12px;
+  }
+  .navigation,
+  .toolbar-actions {
+    width: 100%;
+  }
+  .toolbar-button,
+  .icon-button {
+    min-height: 44px;
+  }
+  .icon-button {
+    width: 44px;
+  }
+  .view-switch button {
+    min-height: 38px;
+    min-width: 40px;
+  }
+  .panel {
+    padding: 14px;
+  }
+  .panel-heading {
+    gap: 10px;
+  }
+  .details div {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+  .details dt {
+    overflow-wrap: anywhere;
+  }
+  .summary-groups {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
