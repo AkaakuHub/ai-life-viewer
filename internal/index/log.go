@@ -11,7 +11,6 @@ import (
 
 	"agent-timeline/internal/timeline"
 	"path/filepath"
-	"sort"
 	"time"
 )
 
@@ -27,22 +26,6 @@ type interval struct{ Start, Last int64 }
 
 const minute = int64(time.Minute / time.Millisecond)
 
-func (i interval) end(minimum int64) int64 { return max(i.Last, i.Start+minimum) }
-
-func mergeIntervals(spans []interval) []interval {
-	sort.Slice(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
-	merged := spans[:0]
-	for _, span := range spans {
-		if len(merged) == 0 || span.Start-merged[len(merged)-1].Last > 5*minute {
-			merged = append(merged, span)
-			continue
-		}
-		last := &merged[len(merged)-1]
-		last.Last = max(last.Last, span.Last)
-	}
-	return merged
-}
-
 type usage struct {
 	Total     *int64 `json:"total_tokens"`
 	Input     *int64 `json:"input_tokens"`
@@ -52,22 +35,27 @@ type usage struct {
 }
 
 type entry struct {
-	Timestamp time.Time
-	Type      string
-	SessionID string
-	CWD       string
-	GitBranch string
-	Slug      string
-	Message   claudeMessage
-	IsMeta    bool
-	Payload   struct {
-		ID      string
-		CWD     string
-		Model   string
-		Type    string
-		Effort  string
-		Message string
-		Git     struct {
+	Timestamp  time.Time
+	Type       string
+	SessionID  string
+	CWD        string
+	GitBranch  string
+	Slug       string
+	Message    claudeMessage
+	IsMeta     bool
+	Subtype    string
+	DurationMS int64 `json:"durationMs"`
+	Payload    struct {
+		StartedAt   int64 `json:"started_at"`
+		CompletedAt int64 `json:"completed_at"`
+		DurationMS  int64 `json:"duration_ms"`
+		ID          string
+		CWD         string
+		Model       string
+		Type        string
+		Effort      string
+		Message     string
+		Git         struct {
 			Branch string
 			Commit string `json:"commit_hash"`
 			Remote string `json:"repository_url"`
@@ -93,10 +81,7 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 		}
 		offset += int64(len(line))
 		var e entry
-		if stamp, ok := codexEventTime(line, meta); ok {
-			if stamp != 0 {
-				spans = append(spans, interval{stamp, stamp})
-			}
+		if skipCodexBody(line, meta) {
 			continue
 		}
 		if json.Unmarshal(line, &e) != nil || e.Timestamp.IsZero() {
@@ -126,6 +111,10 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 					meta.setUsage(e.Payload.Info.Total)
 				case "task_started", "turn_started":
 					increment(&meta.TurnCount)
+				case "task_complete", "turn_complete", "turn_aborted":
+					if span, ok := e.codexSpan(); ok {
+						spans = append(spans, span)
+					}
 				case "user_message":
 					if meta.Preview == "" {
 						meta.Preview = shortPreview(e.Payload.Message)
@@ -139,6 +128,11 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 				continue
 			}
 		} else {
+			if e.Type == "system" && e.Subtype == "turn_duration" && e.DurationMS > 0 {
+				end := e.Timestamp.UnixMilli()
+				spans = append(spans, interval{end - e.DurationMS, end})
+				continue
+			}
 			if e.Type != "user" && e.Type != "assistant" && e.Type != "tool_result" {
 				continue
 			}
@@ -156,41 +150,50 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 			}
 			meta.observeClaude(e)
 		}
-		stamp := e.Timestamp.UnixMilli()
-		spans = append(spans, interval{stamp, stamp})
 	}
 }
 
+func (e entry) codexSpan() (interval, bool) {
+	end := e.Timestamp.UnixMilli()
+	if e.Payload.CompletedAt > 0 && e.Payload.CompletedAt != e.Timestamp.Unix() {
+		end = e.Payload.CompletedAt * 1000
+	}
+	if e.Payload.DurationMS > 0 {
+		return interval{end - e.Payload.DurationMS, end}, true
+	}
+	start := e.Payload.StartedAt * 1000
+	return interval{start, end}, start > 0 && start < end
+}
+
 // Codex writes large response bodies and snapshots after the timestamp and type.
-func codexEventTime(line []byte, meta *source) (int64, bool) {
+func skipCodexBody(line []byte, meta *source) bool {
 	if meta.Agent != "cx" {
-		return 0, false
+		return false
 	}
 	rest, ok := bytes.CutPrefix(line, []byte(`{"timestamp":"`))
 	if !ok {
-		return 0, false
+		return false
 	}
-	stamp, rest, ok := bytes.Cut(rest, []byte(`","type":"`))
+	_, rest, ok = bytes.Cut(rest, []byte(`","type":"`))
 	if !ok {
-		return 0, false
+		return false
 	}
 	if bytes.HasPrefix(rest, []byte(`world_state"`)) ||
 		bytes.HasPrefix(rest, []byte(`compacted"`)) ||
 		bytes.HasPrefix(rest, []byte(`thread_name"`)) {
-		return 0, true
+		return true
 	}
 	if payload, ok := bytes.CutPrefix(rest, []byte(`response_item","payload":{"type":"`)); ok {
 		kind, _, ok := bytes.Cut(payload, []byte(`"`))
-		t, err := time.Parse(time.RFC3339Nano, string(stamp))
-		if !ok || err != nil {
-			return 0, false
+		if !ok {
+			return false
 		}
 		if isToolCall(string(kind)) {
 			increment(&meta.ToolCallCount)
 		}
-		return t.UnixMilli(), true
+		return true
 	}
-	return 0, false
+	return false
 }
 
 func projectName(cwd string) string {

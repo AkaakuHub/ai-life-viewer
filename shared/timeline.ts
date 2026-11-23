@@ -54,6 +54,8 @@ export type Block = Metrics & {
   tokens: number | null;
   start: number;
   end: number;
+  activeMs: number;
+  wallMs: number;
 };
 
 export type DayTotal = { day: number; ms: number };

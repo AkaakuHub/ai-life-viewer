@@ -33,13 +33,14 @@ import { Calendar } from "./calendar/Calendar.tsx";
 import { Dashboard } from "./calendar/Dashboard.tsx";
 import { YearCalendar, type YearJump } from "./calendar/YearCalendar.tsx";
 import { movePeriod, period, views, type View } from "./calendar/period.ts";
-import { Filters, type Selection } from "./calendar/Filters.tsx";
+import { Filters } from "./calendar/Filters.tsx";
 import { BlockPanel, SummaryPanel } from "./calendar/Panels.tsx";
 import { UsageDayPanel } from "./calendar/Usage.tsx";
+import { filterParams, type AppView } from "./calendar/screen.ts";
+import { useScreen } from "./calendar/use-screen.ts";
 import { useResource } from "./calendar/use-resource.ts";
 import "./style.css";
 
-type AppView = View | "top";
 const navigation = [
   { value: "top", label: "トップ" },
   { value: "year", label: "年" },
@@ -49,15 +50,15 @@ const navigation = [
 ] satisfies Array<{ value: AppView; label: string }>;
 
 function App() {
-  const [anchor, setAnchor] = useState(Date.now);
-  const [view, setView] = useState<AppView>("top");
   const [jump, setJump] = useState<YearJump>();
   const [panel, setPanel] = useState<"filters" | "summary" | Block | UsageDay>();
-  const [selection, setSelection] = useState<Selection>({ agents: [], projects: [], q: "" });
+  const restore = useCallback(({ view, anchor }: { view: AppView; anchor: number }) => {
+    setJump(view === "year" ? { start: period("year", anchor).start } : undefined);
+    setPanel(undefined);
+  }, []);
+  const [{ view, anchor, selection }, navigate] = useScreen(restore);
   const { start, end } = period(view === "top" ? "day" : view, anchor);
-  const filters = new URLSearchParams({ q: selection.q });
-  for (const agent of selection.agents) filters.append("agents", agent);
-  for (const project of selection.projects) filters.append("projects", project);
+  const filters = filterParams(selection);
   const query = new URLSearchParams(filters);
   query.set("start", String(start));
   query.set("end", String(end));
@@ -76,24 +77,28 @@ function App() {
   );
   const latest = period("year", Date.now()).start;
   const earliest = dashboard?.data ? period("year", dashboard.data.history.start).start : latest;
-  const jumpToYear = useCallback((target: number) => {
-    setJump({ start: target });
-  }, []);
+  const jumpToYear = useCallback(
+    (target: number) => {
+      setJump({ start: target });
+      navigate({ anchor: target });
+    },
+    [navigate],
+  );
   const move = useCallback(
     (direction: number) => {
       if (view === "top") return;
       if (view === "year") {
         jumpToYear(Math.max(earliest, Math.min(latest, movePeriod("year", start, direction))));
       } else {
-        setAnchor((current) => movePeriod(view, current, direction));
+        navigate({ anchor: movePeriod(view, anchor, direction) });
       }
     },
-    [earliest, jumpToYear, latest, start, view],
+    [anchor, earliest, jumpToYear, latest, navigate, start, view],
   );
   const goLatest = useCallback(() => {
     if (view === "year") jumpToYear(latest);
-    else setAnchor(Date.now());
-  }, [jumpToYear, latest, view]);
+    else if (view !== "top") navigate({ anchor: Date.now() });
+  }, [jumpToYear, latest, navigate, view]);
   useWindowEvent("keydown", (event) => {
     if (
       panel ||
@@ -122,13 +127,12 @@ function App() {
     event.preventDefault();
   });
   const drillDown = (target: View, day: number) => {
-    setAnchor(day);
-    setView(target);
+    setJump(undefined);
+    navigate({ view: target, anchor: day });
   };
   const changeView = (target: AppView) => {
-    if (target === "year") setAnchor(latest);
-    setJump(target === "year" ? { start: latest } : undefined);
-    setView(target);
+    setJump(undefined);
+    navigate({ view: target });
   };
   const close = () => setPanel(undefined);
   return (
@@ -218,7 +222,9 @@ function App() {
                   anchor={anchor}
                   jump={jump}
                   latest={latest}
-                  visible={setAnchor}
+                  visible={(year) => {
+                    if (year !== start) navigate({ anchor: year }, "replace");
+                  }}
                   drillDown={drillDown}
                 />
               )
@@ -244,7 +250,7 @@ function App() {
         options={options?.data}
         failed={options?.error}
         value={selection}
-        change={setSelection}
+        change={(selection, mode) => navigate({ selection }, mode)}
       />
       <SummaryPanel
         opened={panel === "summary"}

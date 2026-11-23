@@ -49,7 +49,7 @@ func TestTimelineChoosesBestAvailableCodexSource(t *testing.T) {
 		if err := saveSource(tx, key, source{Agent: "cx", Session: "a", Project: "project"}); err != nil {
 			t.Fatal(err)
 		}
-		if err := saveIntervals(tx, key, []interval{{1, 2}}, 0); err != nil {
+		if err := saveIntervals(tx, key, []interval{{1, 2}}); err != nil {
 			t.Fatal(err)
 		}
 	}

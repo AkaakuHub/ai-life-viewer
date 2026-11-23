@@ -59,7 +59,7 @@ func (s *Store) syncCodexTurns(path string) error {
 		if err := saveSource(tx, key, meta); err != nil {
 			return err
 		}
-		return saveIntervals(tx, key, mergeTurnSpans(spans), 0)
+		return saveIntervals(tx, key, mergeTurnSpans(spans))
 	}
 	for rows.Next() {
 		var id string

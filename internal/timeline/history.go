@@ -32,10 +32,11 @@ func SummarizeHistory(start int64, blocks []Block, days []DayTotal, account map[
 			addTokens(&year.AccountTokens, tokens)
 		}
 	}
-	first := make(map[string]Block)
+	first := make(map[sessionKey]Block)
 	for _, block := range blocks {
-		if earlier, exists := first[block.Source]; !exists || block.Start < earlier.Start {
-			first[block.Source] = block
+		key := block.sessionKey()
+		if earlier, exists := first[key]; !exists || block.Start < earlier.Start {
+			first[key] = block
 		}
 	}
 	for _, block := range first {

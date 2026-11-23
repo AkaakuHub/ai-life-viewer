@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-const metadataVersion = 1
+const metadataVersion = 3
 
 func migrate(db *sql.DB) error {
 	tx, err := db.Begin()

@@ -10,8 +10,8 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { MINUTE, type Block, type Metrics, type Summary } from "../../shared/timeline.ts";
-import { clock, date, hours, monthNumber, usd, weekday } from "./format.ts";
+import { type Block, type Metrics, type Summary } from "../../shared/timeline.ts";
+import { blockTime, date, duration, hours, monthNumber, usd, weekday } from "./format.ts";
 import { Breakdown } from "./Breakdown.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { supplementaryPreview } from "./markdown.ts";
@@ -178,9 +178,8 @@ export function BlockPanel({ block, close }: { block?: Block; close: () => void 
               ["エージェント", block.agent],
               ["プロジェクト", block.project],
               ["作業ディレクトリ", block.cwd],
-              ["開始", `${date.format(block.start)} ${clock.format(block.start)}`],
-              ["終了", `${date.format(block.end)} ${clock.format(block.end)}`],
-              ["稼働時間", `${Math.round((block.end - block.start) / MINUTE)}分`],
+              ["時間帯", blockTime(block)],
+              ["実稼働", duration(block.activeMs)],
               ["モデル", block.model],
               [
                 "記録元",

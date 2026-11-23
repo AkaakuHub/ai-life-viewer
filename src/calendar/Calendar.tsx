@@ -9,7 +9,17 @@ import timeGrid from "@fullcalendar/react/timegrid";
 import { Box, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { MINUTE, dayKey, type Block, type DayTotal, type UsageDay } from "../../shared/timeline.ts";
-import { blockColor, clock, date, dayNumber, hours, usd, weekday } from "./format.ts";
+import {
+  blockColor,
+  blockTime,
+  duration,
+  clock,
+  date,
+  dayNumber,
+  hours,
+  usd,
+  weekday,
+} from "./format.ts";
 import { plainText } from "./markdown.ts";
 import { UsageBadge } from "./Usage.tsx";
 import type { View } from "./period.ts";
@@ -46,12 +56,8 @@ function EventLabel({
           <Text size="sm" fw={700}>
             {title}
           </Text>
-          <Text size="xs">
-            {date.format(block.start)} {clock.format(block.start)} – {date.format(block.end)}{" "}
-            {clock.format(block.end)}
-            {" · "}
-            {Math.round((block.end - block.start) / MINUTE)}分
-          </Text>
+          <Text size="xs">時間帯 {blockTime(block)}</Text>
+          <Text size="xs">実稼働 {duration(block.activeMs)}</Text>
           {block.model && <Text size="xs">{block.model}</Text>}
           <Text size="xs">概算API料金（セッション） {usd(block.estimatedCostUsd)}</Text>
         </Stack>
@@ -111,12 +117,13 @@ export function Calendar({
       new Map(
         blocks.map((block) => {
           const color = blockColor(block.agent, block.project);
+          const id = `${block.id}:${block.start}`;
           return [
-            String(block.id),
+            id,
             {
               block,
               event: {
-                id: String(block.id),
+                id: id,
                 title: plainText(block.title) || block.project,
                 start: new Date(block.start),
                 end: new Date(block.end),

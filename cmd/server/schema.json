@@ -60,7 +60,7 @@
     },
     "GET /api/blocks": {
       "query": { "allOf": [{ "$ref": "#/$defs/RangeQuery" }], "required": ["start", "end"] },
-      "description": "Returns blocks overlapping [start, end), clipped JST day totals, and absolute daily usage totals. Blocks expose their full timestamps.",
+      "description": "Returns one calendar block per session and JST date, clipped to [start, end), with active duration, wall-clock duration, JST active-day totals, and absolute daily usage totals.",
       "responses": {
         "200": { "$ref": "#/$defs/BlockResult" },
         "400": { "type": "string" },
@@ -268,10 +268,15 @@
         "branch",
         "tokens",
         "start",
-        "end"
+        "end",
+        "activeMs",
+        "wallMs"
       ],
       "properties": {
-        "id": { "type": "integer" },
+        "id": {
+          "type": "integer",
+          "description": "Representative interval ID. Use with start to distinguish different dates."
+        },
         "agent": { "type": "string" },
         "title": { "type": "string" },
         "session": { "type": "string" },
@@ -282,6 +287,14 @@
         "tokens": { "type": ["integer", "null"] },
         "start": { "$ref": "#/$defs/Timestamp" },
         "end": { "$ref": "#/$defs/Timestamp" },
+        "activeMs": {
+          "$ref": "#/$defs/Counter",
+          "description": "Sum of recorded activity within this block, excluding gaps"
+        },
+        "wallMs": {
+          "$ref": "#/$defs/Counter",
+          "description": "Elapsed milliseconds between start and end"
+        },
         "reasoningEffort": { "type": "string" },
         "gitSha": { "type": "string" },
         "gitOriginUrl": { "type": "string" },

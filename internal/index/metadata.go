@@ -81,7 +81,7 @@ func (s *Store) syncCodex(path string) error {
 			if err := saveSource(tx, key, source{Agent: m.Agent, Session: m.Session, Project: projectName(m.CWD)}); err != nil {
 				return err
 			}
-			if err := saveIntervals(tx, key, []interval{span}, 0); err != nil {
+			if err := saveIntervals(tx, key, []interval{span}); err != nil {
 				return err
 			}
 		}

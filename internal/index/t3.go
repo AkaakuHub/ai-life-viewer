@@ -11,7 +11,7 @@ func (s *Store) syncT3(path string) error {
 		return err
 	}
 	defer db.Close()
-	const watermarkKey = "t3_threads_v1"
+	const watermarkKey = "t3_threads_v3"
 	mark, err := watermark(s.db, watermarkKey)
 	if err != nil {
 		return err
@@ -54,7 +54,6 @@ func (s *Store) syncT3(path string) error {
 		return err
 	}
 	defer tx.Rollback()
-	now := time.Now()
 	agents := map[string]string{"codex": "cx", "claude": "cl", "antigravity": "ag"}
 	threads := make(map[string]*t3Thread)
 	for rows.Next() {
@@ -77,10 +76,7 @@ func (s *Store) syncT3(path string) error {
 		}
 		from, fromErr := time.Parse(time.RFC3339Nano, start)
 		to, toErr := time.Parse(time.RFC3339Nano, end)
-		if end == "" && status == "running" {
-			to, toErr = now, nil
-		}
-		if fromErr != nil || toErr != nil || to.Before(from) || status == "rolled_back" {
+		if fromErr != nil || toErr != nil || !to.After(from) || status == "rolled_back" {
 			continue
 		}
 		m.Agent = agents[provider]
@@ -133,5 +129,5 @@ func (t *t3Thread) save(tx *sql.Tx, id string) error {
 	if err := saveSource(tx, key, t.metadata); err != nil {
 		return err
 	}
-	return saveIntervals(tx, key, mergeIntervals(t.spans), minute)
+	return saveIntervals(tx, key, mergeTurnSpans(t.spans))
 }

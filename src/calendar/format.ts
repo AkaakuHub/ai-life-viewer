@@ -1,4 +1,4 @@
-import { DAY, HOUR } from "../../shared/timeline.ts";
+import { DAY, HOUR, MINUTE, dayStart, type Block } from "../../shared/timeline.ts";
 
 import type { View } from "./period.ts";
 
@@ -38,6 +38,20 @@ export const clock = new Intl.DateTimeFormat("ja-JP", {
   hourCycle: "h23",
 });
 export const hours = (ms: number) => `${(ms / HOUR).toFixed(1)}h`;
+
+export function duration(ms: number) {
+  if (ms > 0 && ms < MINUTE) return "<1m";
+  const minutes = Math.floor(ms / MINUTE);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h ? `${h}h${m ? `${m}m` : ""}` : `${m}m`;
+}
+
+export function blockTime(block: Block) {
+  const from = `${date.format(block.start)} ${clock.format(block.start)}`;
+  const to = block.end === dayStart(block.start) + DAY ? "24:00" : clock.format(block.end);
+  return `${from}–${to}（経過 ${duration(block.wallMs)}）`;
+}
 
 const colors = [
   "#478659",

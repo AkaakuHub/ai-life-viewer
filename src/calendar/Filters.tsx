@@ -1,7 +1,8 @@
 import { Alert, Button, Drawer, MultiSelect, Stack, TextInput } from "@mantine/core";
+import { useRef } from "react";
 import type { FilterOptions } from "../../shared/timeline.ts";
 
-export type Selection = FilterOptions & { q: string };
+import type { Selection } from "./screen.ts";
 
 export function Filters({
   opened,
@@ -16,8 +17,9 @@ export function Filters({
   options?: FilterOptions;
   failed?: boolean;
   value: Selection;
-  change: (value: Selection) => void;
+  change: (value: Selection, mode?: "push" | "replace") => void;
 }) {
+  const editingSearch = useRef(false);
   return (
     <Drawer
       opened={opened}
@@ -38,7 +40,16 @@ export function Filters({
           type="search"
           value={value.q}
           data-mantine-stop-propagation="true"
-          onChange={(event) => change({ ...value, q: event.currentTarget.value })}
+          onBlur={() => {
+            editingSearch.current = false;
+          }}
+          onChange={(event) => {
+            change(
+              { ...value, q: event.currentTarget.value },
+              editingSearch.current ? "replace" : "push",
+            );
+            editingSearch.current = true;
+          }}
         />
         {(["agents", "projects"] as const).map((key) => (
           <MultiSelect

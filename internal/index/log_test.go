@@ -9,8 +9,8 @@ import (
 func TestParseLogResumesAtIncompleteLine(t *testing.T) {
 	meta := source{Agent: "cx"}
 	first := `{"timestamp":"2026-11-22T00:00:00Z","type":"session_meta","payload":{"id":"abc","cwd":"/projects/example"}}` + "\n"
-	event := `{"timestamp":"2026-11-22T00:01:00Z","type":"response_item","payload":{}}` + "\n"
-	next := `{"timestamp":"2026-11-22T00:04:00Z","type":"turn_context","payload":{"model":"test-model"}}` + "\n"
+	event := `{"timestamp":"2026-11-22T00:01:00Z","type":"event_msg","payload":{"type":"task_complete","duration_ms":10000}}` + "\n"
+	next := `{"timestamp":"2026-11-22T00:04:00Z","type":"event_msg","payload":{"type":"turn_aborted","duration_ms":20000}}` + "\n"
 	initial := first + event + next[:30]
 	spans, offset, err := parseLog(strings.NewReader(initial), &meta)
 	if err != nil || offset != int64(len(first)+len(event)) || len(spans) != 1 || meta.Session != "abc" {
@@ -18,22 +18,23 @@ func TestParseLogResumesAtIncompleteLine(t *testing.T) {
 	}
 	full := first + event + next
 	events, consumed, err := parseLog(strings.NewReader(full[offset:]), &meta)
-	if err != nil || offset+consumed != int64(len(full)) || len(events) != 1 || meta.Model != "test-model" {
+	if err != nil || offset+consumed != int64(len(full)) || len(events) != 1 {
 		t.Fatalf("incremental parse: spans=%v consumed=%d metadata=%+v err=%v", events, consumed, meta, err)
 	}
-	merged := mergeIntervals(append(spans, events...))
-	if len(merged) != 1 || merged[0].end(minute)-merged[0].Start != 3*minute {
-		t.Fatalf("append should extend the current block: %+v", merged)
+	merged := mergeTurnSpans(append(spans, events...))
+	if len(merged) != 2 || merged[0].Last-merged[0].Start != 10_000 || merged[1].Last-merged[1].Start != 20_000 {
+		t.Fatalf("expected measured durations across parse batches: %+v", merged)
 	}
 }
 
-func TestMergeIntervalsUsesRawGapAndOneMinuteMinimum(t *testing.T) {
-	base := time.Date(2026, 11, 22, 0, 0, 0, 0, time.UTC).UnixMilli()
-	out := mergeIntervals([]interval{
-		{base + 11*minute, base + 11*minute}, {base, base}, {base + 5*minute, base + 5*minute},
-	})
-	if len(out) != 2 || out[0].end(minute) != base+5*minute || out[1].end(minute) != base+12*minute {
-		t.Fatalf("unexpected work intervals: %+v", out)
+func TestClaudeOnlyCountsRecordedTurnDurations(t *testing.T) {
+	meta := source{Agent: "cl"}
+	data := `{"timestamp":"2026-11-22T00:00:00Z","type":"user","sessionId":"example"}` + "\n" +
+		`{"timestamp":"2026-11-22T00:10:00Z","type":"system","subtype":"turn_duration","durationMs":1500}` + "\n"
+	spans, _, err := parseLog(strings.NewReader(data), &meta)
+	end := time.Date(2026, 11, 22, 0, 10, 0, 0, time.UTC).UnixMilli()
+	if err != nil || len(spans) != 1 || spans[0] != (interval{end - 1500, end}) {
+		t.Fatalf("spans=%v err=%v", spans, err)
 	}
 }
 

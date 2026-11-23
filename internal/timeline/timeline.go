@@ -72,10 +72,8 @@ func Summarize(blocks []Block, start, end int64) Summary {
 	summary := Summary{Days: []DayTotal{}}
 	agents := make(map[string]*Group)
 	projects := make(map[string]*Group)
-	seen := make(map[string]bool)
-	sessions := make(map[string]struct{})
-	d := time.UnixMilli(start).In(JST)
-	first := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, JST).UnixMilli()
+	seen := make(map[sessionKey]bool)
+	first := midnight(start)
 	for day := first; day < end; day += Day {
 		summary.Days = append(summary.Days, DayTotal{Day: day})
 	}
@@ -89,17 +87,13 @@ func Summarize(blocks []Block, start, end int64) Summary {
 		agent, project := group(agents, block.Agent), group(projects, block.Project)
 		agent.MS += ms
 		project.MS += ms
-		if !seen[block.Source] {
-			key := block.Source
-			if block.Session != "" {
-				key = block.Agent + "\x00" + block.Session
-			}
-			sessions[key] = struct{}{}
+		key := block.sessionKey()
+		if !seen[key] {
 			summary.Metrics.add(block.Metrics)
 			summary.Cost.add(block.EstimatedCostUSD)
 			agent.Cost.add(block.EstimatedCostUSD)
 			project.Cost.add(block.EstimatedCostUSD)
-			seen[block.Source] = true
+			seen[key] = true
 		}
 		for i := int((from - first) / Day); i < len(summary.Days); i++ {
 			day := &summary.Days[i]
@@ -110,7 +104,7 @@ func Summarize(blocks []Block, start, end int64) Summary {
 		}
 	}
 	summary.Agents, summary.Projects = groups(agents), groups(projects)
-	summary.SessionCount = len(sessions)
+	summary.SessionCount = len(seen)
 	return summary
 }
 

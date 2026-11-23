@@ -39,7 +39,7 @@ func TestUsageCacheCoexistsWithDetailedBlocksAndSurvivesThrottle(t *testing.T) {
 		tx.Rollback()
 		t.Fatal(err)
 	}
-	if err := saveIntervals(tx, "test", []interval{{now.UnixMilli(), now.Add(time.Minute).UnixMilli()}}, 0); err != nil {
+	if err := saveIntervals(tx, "test", []interval{{now.UnixMilli(), now.Add(time.Minute).UnixMilli()}}); err != nil {
 		tx.Rollback()
 		t.Fatal(err)
 	}

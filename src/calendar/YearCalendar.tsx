@@ -79,7 +79,7 @@ export function YearCalendar({
       h="100%"
       style={{ overflow: "auto" }}
       aria-label="年別カレンダー"
-      onScroll={(event) => {
+      onScrollEnd={(event) => {
         const edge = event.currentTarget.getBoundingClientRect().top + 12;
         let year = earliest;
         for (const [start] of years) {

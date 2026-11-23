@@ -77,11 +77,11 @@ func TestIngestMergesExistingSessionAndUpdatesWithoutDuplicates(t *testing.T) {
 	`, start, start+60000, start+60000); err != nil {
 		t.Fatal(err)
 	}
-	read := func() ([]timeline.Block, []ingest.DailyUsage) {
+	read := func() ([]timeline.CalendarBlock, []ingest.DailyUsage) {
 		t.Helper()
 		w := request(handler, http.MethodGet, fmt.Sprintf("/api/blocks?start=%d&end=%d", start, start+500000), "", "")
 		var result struct {
-			Blocks       []timeline.Block
+			Blocks       []timeline.CalendarBlock
 			DailyUsage   []ingest.DailyUsage
 			AccountUsage index.AccountUsage
 		}
@@ -106,21 +106,22 @@ func TestIngestMergesExistingSessionAndUpdatesWithoutDuplicates(t *testing.T) {
 	}
 	submit(start + 180000)
 	first, daily := read()
-	if len(first) != 2 || first[0].Start != start || first[0].End != start+90000 ||
+	if len(first) != 1 || first[0].Start != start || first[0].End != start+180000 ||
+		first[0].ActiveMS != 150000 || first[0].WallMS != 180000 ||
 		first[0].Session != "shared" || first[0].Title != "Remote" || first[0].Project != "local" ||
 		first[0].InputTokens == nil || *first[0].InputTokens != 150 || len(daily) != 1 || daily[0].Tokens == nil || *daily[0].Tokens != 40 {
 		t.Fatalf("unexpected merge: %+v %+v", first, daily)
 	}
 	submit(start + 240000)
 	second, _ := read()
-	if len(second) != 2 || second[0].ID != first[0].ID || second[1].ID != first[1].ID || second[1].End != start+240000 {
+	if len(second) != 1 || second[0].ID != first[0].ID || second[0].End != start+240000 || second[0].ActiveMS != 210000 {
 		t.Fatalf("unexpected upsert: %+v", second)
 	}
 	if _, err := db.Exec("UPDATE blocks SET last=?,end=? WHERE source='/logs/codex.jsonl'", start+100000, start+100000); err != nil {
 		t.Fatal(err)
 	}
 	third, _ := read()
-	if len(third) != 2 || third[0].End != start+100000 || third[1].ID != first[1].ID {
+	if len(third) != 1 || third[0].End != start+240000 || third[0].ActiveMS != 220000 {
 		t.Fatalf("local refresh dropped imported data: %+v", third)
 	}
 }

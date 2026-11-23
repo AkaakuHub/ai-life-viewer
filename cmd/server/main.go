@@ -83,6 +83,7 @@ func routes(store *index.Store, rates *pricing.Source, auth ingest.Auth, dist fs
 			b := &blocks[i]
 			b.EstimatedCostUSD = catalog.Estimate(b.Model, b.InputTokens, b.CachedInputTokens, b.OutputTokens)
 		}
+		blocks = timeline.UnionSessions(blocks)
 		summary := timeline.Summarize(blocks, start, end)
 		usage, err := store.AccountUsage(start, end)
 		if err != nil {
@@ -113,11 +114,11 @@ func routes(store *index.Store, rates *pricing.Source, auth ingest.Auth, dist fs
 			return
 		}
 		respond(w, struct {
-			Blocks       []timeline.Block    `json:"blocks"`
-			Days         []timeline.DayTotal `json:"days"`
-			AccountUsage index.AccountUsage  `json:"accountUsage"`
-			DailyUsage   []ingest.DailyUsage `json:"dailyUsage"`
-		}{blocks, summary.Days, usage, daily}, nil)
+			Blocks       []timeline.CalendarBlock `json:"blocks"`
+			Days         []timeline.DayTotal      `json:"days"`
+			AccountUsage index.AccountUsage       `json:"accountUsage"`
+			DailyUsage   []ingest.DailyUsage      `json:"dailyUsage"`
+		}{timeline.CalendarBlocks(blocks, start, end), summary.Days, usage, daily}, nil)
 	}
 	mux.HandleFunc("GET /api/blocks", rangeRoute)
 	mux.HandleFunc("GET /api/summary", rangeRoute)
