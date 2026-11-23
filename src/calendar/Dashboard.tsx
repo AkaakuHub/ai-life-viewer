@@ -1,10 +1,10 @@
-import { Alert, Box, Card, Paper, Progress, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { Alert, Box, Card, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import type { ReactNode } from "react";
 import type { DashboardSummary } from "../../shared/timeline.ts";
 import { Breakdown } from "./Breakdown.tsx";
-import { hours, monthName, usd } from "./format.ts";
-
-const number = new Intl.NumberFormat("ja-JP");
-const count = (value?: number) => (value === undefined ? "—" : number.format(value));
+import { DashboardCount } from "./DashboardCount.tsx";
+import { DashboardMonths } from "./DashboardMonths.tsx";
+import { hours, usd } from "./format.ts";
 
 export function Dashboard({
   summary,
@@ -27,17 +27,31 @@ export function Dashboard({
     );
 
   const account = summary.accountUsage.summary;
-  const cards: Array<[string, string]> = [
-    ["累計稼働時間", hours(summary.totalMs)],
-    ["累計概算API料金", usd(summary.estimatedCostUsd)],
-    ["総セッション数", count(summary.sessionCount)],
-    ["ターン数", count(summary.turnCount)],
-    ["ツール実行回数", count(summary.toolCallCount)],
-    ["Codex /usageの累計トークン", count(account?.lifetimeTokens)],
-    ["Codex /usageの最長連続利用", account ? `${count(account.longestStreakDays)}日` : "—"],
-    ["Codex /usageの1日最大トークン", count(account?.peakDailyTokens)],
+  const cards: Array<{ label: string; value: ReactNode; note?: ReactNode }> = [
+    { label: "累計稼働時間", value: hours(summary.totalMs) },
+    {
+      label: "概算API料金",
+      value: usd(summary.estimatedCostUsd),
+      note: summary.unpricedSessions ? (
+        <>
+          未算出 <DashboardCount value={summary.unpricedSessions} />件
+        </>
+      ) : undefined,
+    },
+    { label: "総セッション", value: <DashboardCount value={summary.sessionCount} /> },
+    {
+      label: "ターン / ツール",
+      value: (
+        <>
+          <DashboardCount value={summary.turnCount} /> /{" "}
+          <DashboardCount value={summary.toolCallCount} />
+        </>
+      ),
+    },
+    { label: "Codex累計トークン", value: <DashboardCount value={account?.lifetimeTokens} /> },
+    { label: "最長連続利用", value: account ? `${account.longestStreakDays}日` : "—" },
+    { label: "1日最大トークン", value: <DashboardCount value={account?.peakDailyTokens} /> },
   ];
-  const max = Math.max(1, ...summary.history.months.map(({ ms }) => ms));
   return (
     <Box
       component="section"
@@ -46,75 +60,30 @@ export function Dashboard({
       mih={0}
       style={{ overflow: "auto" }}
     >
-      <Stack p="md" gap="xl" maw={1320} mx="auto">
-        <Stack gap="sm">
-          <Title order={2} size="h4">
+      <Stack px={{ base: "xs", sm: "lg" }} py="md" gap="lg" maw={1280} mx="auto">
+        <Stack gap="xs">
+          <Title order={1} size="h4">
             全期間
           </Title>
-          <SimpleGrid cols={{ base: 2, sm: 4 }}>
-            {cards.map(([label, value], index) => (
+          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing={{ base: "xs", sm: "md" }}>
+            {cards.map(({ label, value, note }) => (
               <Card key={label} withBorder padding="sm">
                 <Text size="xs" c="dimmed">
                   {label}
                 </Text>
-                <Text
-                  fw={700}
-                  fz={{ base: value.length > 12 ? 14 : 18, sm: 18 }}
-                  style={{ overflowWrap: "anywhere" }}
-                >
+                <Text fw={700} fz={{ base: 17, sm: 22 }} component="div">
                   {value}
                 </Text>
-                {index === 1 && Boolean(summary.unpricedSessions) && (
+                {note && (
                   <Text size="xs" c="dimmed">
-                    未算出 {count(summary.unpricedSessions)}件
+                    {note}
                   </Text>
                 )}
               </Card>
             ))}
           </SimpleGrid>
         </Stack>
-        <Stack component="section" gap="sm">
-          <Title order={2} size="h4">
-            月別推移
-          </Title>
-          {[...summary.history.months].reverse().map((month) => (
-            <Paper
-              key={month.start}
-              withBorder
-              p="sm"
-              component="button"
-              type="button"
-              w="100%"
-              ta="start"
-              style={{ cursor: "pointer" }}
-              onClick={() => openMonth(month.start)}
-            >
-              <Stack gap="xs">
-                <Text fw={650}>{monthName.format(month.start)}</Text>
-                <Progress value={(month.ms / max) * 100} aria-label="稼働時間" />
-                <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
-                  {(
-                    [
-                      ["稼働時間", hours(month.ms)],
-                      ["概算API料金", usd(month.estimatedCostUsd)],
-                      ["ローカルトークン", count(month.tokens)],
-                      ["Codex /usage", count(month.accountTokens)],
-                    ] as const
-                  ).map(([label, value]) => (
-                    <div key={label}>
-                      <Text size="xs" c="dimmed">
-                        {label}
-                      </Text>
-                      <Text size="sm" style={{ overflowWrap: "anywhere" }}>
-                        {value}
-                      </Text>
-                    </div>
-                  ))}
-                </SimpleGrid>
-              </Stack>
-            </Paper>
-          ))}
-        </Stack>
+        <DashboardMonths months={summary.history.months} openMonth={openMonth} />
         <SimpleGrid cols={{ base: 1, md: 2 }}>
           <Breakdown title="エージェント別" totals={summary.agents} />
           <Breakdown title="プロジェクト別" totals={summary.projects} />
