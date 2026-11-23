@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"agent-timeline/internal/timeline"
 	_ "modernc.org/sqlite"
@@ -125,7 +126,8 @@ func (s *Store) Blocks(start, end int64, options Options, search string) ([]time
 	}
 	rows, err := s.db.Query(`SELECT id,agent,title,project,cwd,model,branch,tokens,start,end,
 		source,input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,turn_count,tool_call_count,
-		reasoning_effort,git_sha,git_origin_url,preview,provenance FROM timeline
+		reasoning_effort,git_sha,git_origin_url,preview,provenance,
+		(SELECT session FROM sources WHERE key=timeline.source) FROM timeline
 		WHERE end>? AND start<?
 		  AND (?=0 OR agent IN (SELECT value FROM json_each(?)))
 		  AND (?=0 OR project IN (SELECT value FROM json_each(?)))
@@ -140,10 +142,29 @@ func (s *Store) Blocks(start, end int64, options Options, search string) ([]time
 		var b timeline.Block
 		if err := rows.Scan(&b.ID, &b.Agent, &b.Title, &b.Project, &b.CWD, &b.Model, &b.Branch, &b.Tokens, &b.Start, &b.End,
 			&b.Source, &b.InputTokens, &b.CachedInputTokens, &b.OutputTokens, &b.ReasoningTokens, &b.TurnCount, &b.ToolCallCount,
-			&b.ReasoningEffort, &b.GitSHA, &b.GitOriginURL, &b.Preview, &b.Provenance); err != nil {
+			&b.ReasoningEffort, &b.GitSHA, &b.GitOriginURL, &b.Preview, &b.Provenance, &b.Session); err != nil {
 			return nil, err
 		}
 		out = append(out, b)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) HistoryBounds() (int64, int64, error) {
+	var start, end *int64
+	err := s.db.QueryRow(`
+		SELECT min(first),max(last) FROM (
+			SELECT min(start) first,max(end) last FROM timeline
+			UNION ALL
+			SELECT unixepoch(min(day)||'T00:00:00+09:00')*1000,
+			       (unixepoch(max(day)||'T00:00:00+09:00')+86400)*1000 FROM daily_usage WHERE tokens>0
+		)`).Scan(&start, &end)
+	if err != nil {
+		return 0, 0, err
+	}
+	if start == nil || end == nil {
+		now := time.Now().UnixMilli()
+		return now, now + 1, nil
+	}
+	return *start, *end, nil
 }

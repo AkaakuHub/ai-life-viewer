@@ -13,6 +13,7 @@ type Block struct {
 	Metrics
 	EstimatedCostUSD *float64 `json:"estimatedCostUsd,omitempty"`
 	Source           string   `json:"-"`
+	Session          string   `json:"-"`
 	ReasoningEffort  string   `json:"reasoningEffort,omitempty"`
 	GitSHA           string   `json:"gitSha,omitempty"`
 	GitOriginURL     string   `json:"gitOriginUrl,omitempty"`
@@ -60,10 +61,11 @@ type Group struct {
 type Summary struct {
 	Metrics
 	Cost
-	Total    int64      `json:"totalMs"`
-	Agents   []Group    `json:"agents"`
-	Projects []Group    `json:"projects"`
-	Days     []DayTotal `json:"days"`
+	Total        int64      `json:"totalMs"`
+	SessionCount int        `json:"sessionCount"`
+	Agents       []Group    `json:"agents"`
+	Projects     []Group    `json:"projects"`
+	Days         []DayTotal `json:"days"`
 }
 
 func Summarize(blocks []Block, start, end int64) Summary {
@@ -71,6 +73,7 @@ func Summarize(blocks []Block, start, end int64) Summary {
 	agents := make(map[string]*Group)
 	projects := make(map[string]*Group)
 	seen := make(map[string]bool)
+	sessions := make(map[string]struct{})
 	d := time.UnixMilli(start).In(JST)
 	first := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, JST).UnixMilli()
 	for day := first; day < end; day += Day {
@@ -87,13 +90,18 @@ func Summarize(blocks []Block, start, end int64) Summary {
 		agent.MS += ms
 		project.MS += ms
 		if !seen[block.Source] {
+			key := block.Source
+			if block.Session != "" {
+				key = block.Agent + "\x00" + block.Session
+			}
+			sessions[key] = struct{}{}
 			summary.Metrics.add(block.Metrics)
 			summary.Cost.add(block.EstimatedCostUSD)
 			agent.Cost.add(block.EstimatedCostUSD)
 			project.Cost.add(block.EstimatedCostUSD)
 			seen[block.Source] = true
 		}
-		for i := range summary.Days {
+		for i := int((from - first) / Day); i < len(summary.Days); i++ {
 			day := &summary.Days[i]
 			if day.Day >= to {
 				break
@@ -102,6 +110,7 @@ func Summarize(blocks []Block, start, end int64) Summary {
 		}
 	}
 	summary.Agents, summary.Projects = groups(agents), groups(projects)
+	summary.SessionCount = len(sessions)
 	return summary
 }
 

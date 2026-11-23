@@ -43,12 +43,25 @@ func routes(store *index.Store, rates *pricing.Source, dist fs.FS) http.Handler 
 	mux := http.NewServeMux()
 	rangeRoute := func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
-		start, startErr := strconv.ParseInt(query.Get("start"), 10, 64)
-		end, endErr := strconv.ParseInt(query.Get("end"), 10, 64)
-		if startErr != nil || endErr != nil || start < -62135596800000 || end > 253402300799999 || end <= start || end-start > 366*timeline.Day {
-			http.Error(w, "invalid date range", http.StatusBadRequest)
-			return
+		allTime := r.URL.Path == "/api/summary" && !query.Has("start") && !query.Has("end")
+		var start, end int64
+		if allTime {
+			var err error
+			start, end, err = store.HistoryBounds()
+			if err != nil {
+				respond(w, struct{}{}, err)
+				return
+			}
+		} else {
+			var startErr, endErr error
+			start, startErr = strconv.ParseInt(query.Get("start"), 10, 64)
+			end, endErr = strconv.ParseInt(query.Get("end"), 10, 64)
+			if startErr != nil || endErr != nil || start < -62135596800000 || end > 253402300799999 || end <= start || end-start > 366*timeline.Day {
+				http.Error(w, "invalid date range", http.StatusBadRequest)
+				return
+			}
 		}
+
 		options := index.Options{Agents: filters(query["agents"]), Projects: query["projects"]}
 		blocks, err := store.Blocks(start, end, options, strings.TrimSpace(query.Get("q")))
 		if err != nil {
@@ -67,10 +80,20 @@ func routes(store *index.Store, rates *pricing.Source, dist fs.FS) http.Handler 
 			return
 		}
 		if r.URL.Path == "/api/summary" {
+			var history *timeline.History
+			if allTime {
+				account := make(map[string]int64, len(usage.Days))
+				for _, day := range usage.Days {
+					account[day.StartDate] = day.Tokens
+				}
+				trend := timeline.SummarizeHistory(start, blocks, summary.Days, account)
+				history = &trend
+			}
 			respond(w, struct {
 				timeline.Summary
 				AccountUsage index.AccountUsage `json:"accountUsage"`
-			}{summary, usage}, nil)
+				History      *timeline.History  `json:"history,omitempty"`
+			}{summary, usage, history}, nil)
 			return
 		}
 		respond(w, struct {
