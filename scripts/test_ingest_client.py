@@ -112,6 +112,101 @@ class TestIngestClient(unittest.TestCase):
             self.assertEqual(by_id["sess-cc-1"]["toolCallCount"], 1)
             self.assertEqual(by_id["sess-glm-1"]["agent"], "glm")
             self.assertEqual(by_id["sess-glm-1"]["tokens"]["total"], 280)
+            self.assertEqual(by_id["sess-cc-1"]["usageByModel"], [{
+                "model": "claude-sonnet-4-20250514",
+                "serviceTier": "default",
+                "inputTokens": 160,
+                "cachedInputTokens": 100,
+                "outputTokens": 40,
+                "reasoningTokens": 0,
+            }])
+
+    def test_collect_codex_model_switch_and_fast_tier(self):
+        with tempfile.TemporaryDirectory() as td:
+            sess_dir = os.path.join(td, "sessions", "2026", "11", "20")
+            os.makedirs(sess_dir)
+            rollout = os.path.join(sess_dir, "rollout-2026-11-20T00-00-00-01a1f796-b5a7-7243-b342-fd802057c753.jsonl")
+            lines = [
+                {
+                    "timestamp": "2026-11-20T00:00:00Z",
+                    "type": "session_meta",
+                    "payload": {"id": "01a1f796-b5a7-7243-b342-fd802057c753", "cwd": "/tmp/demo"},
+                },
+                {
+                    "timestamp": "2026-11-20T00:00:01Z",
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "thread_settings_applied",
+                        "thread_settings": {"model": "gpt-6.1-sol", "service_tier": "default"},
+                    },
+                },
+                {
+                    "timestamp": "2026-11-20T00:00:05Z",
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "token_count",
+                        "info": {
+                            "total_token_usage": {
+                                "total_tokens": 1100,
+                                "input_tokens": 1000,
+                                "cached_input_tokens": 600,
+                                "output_tokens": 100,
+                                "reasoning_output_tokens": 40,
+                            }
+                        },
+                    },
+                },
+                {
+                    "timestamp": "2026-11-20T00:00:10Z",
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "thread_settings_applied",
+                        "thread_settings": {"model": "gpt-6.2-sol", "service_tier": "fast"},
+                    },
+                },
+                {
+                    "timestamp": "2026-11-20T00:00:20Z",
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "token_count",
+                        "info": {
+                            "total_token_usage": {
+                                "total_tokens": 3400,
+                                "input_tokens": 3000,
+                                "cached_input_tokens": 2100,
+                                "output_tokens": 400,
+                                "reasoning_output_tokens": 140,
+                            }
+                        },
+                    },
+                },
+            ]
+            with open(rollout, "w", encoding="utf-8") as fh:
+                for row in lines:
+                    fh.write(json.dumps(row) + "\n")
+
+            recs = ic.collect_codex(td)
+            self.assertEqual(len(recs), 1)
+            r = recs[0]
+            self.assertEqual(r["serviceTier"], "fast")
+            self.assertEqual(r["usageByModel"], [
+                {
+                    "model": "gpt-6.1-sol",
+                    "serviceTier": "default",
+                    "inputTokens": 1000,
+                    "cachedInputTokens": 600,
+                    "outputTokens": 100,
+                    "reasoningTokens": 40,
+                },
+                {
+                    "model": "gpt-6.2-sol",
+                    "serviceTier": "fast",
+                    "inputTokens": 2000,
+                    "cachedInputTokens": 1500,
+                    "outputTokens": 300,
+                    "reasoningTokens": 100,
+                },
+            ])
 
     def test_collect_gemini_cli_and_opencode(self):
         with tempfile.TemporaryDirectory() as td:

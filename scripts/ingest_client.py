@@ -48,6 +48,53 @@ UUID_RE = re.compile(
 )
 CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
 AGENT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+VALID_SERVICE_TIERS = {"default", "standard", "fast", "priority"}
+
+
+def normalize_service_tier(raw: str | None) -> str:
+    if not raw or not isinstance(raw, str):
+        return "default"
+    tier = raw.strip().lower()
+    if tier in ("fast", "priority"):
+        return tier
+    return "default"
+
+
+def finalize_usage_by_model(
+    buckets: dict[tuple[str, str], list[int]],
+    fallback_model: str | None = None,
+) -> list[dict]:
+    merged: dict[tuple[str, str], list[int]] = {}
+    for (model, tier), vals in buckets.items():
+        m = clean_meta(model) or clean_meta(fallback_model)
+        if not m:
+            continue
+        t = normalize_service_tier(tier)
+        inp, cac, out, rea = vals
+        if inp <= 0 and out <= 0 and cac <= 0 and rea <= 0:
+            continue
+        key = (m, t)
+        if key not in merged:
+            merged[key] = [0, 0, 0, 0]
+        merged[key][0] += max(0, inp)
+        merged[key][1] += max(0, cac)
+        merged[key][2] += max(0, out)
+        merged[key][3] += max(0, rea)
+
+    rows: list[dict] = []
+    for (m, t), (inp, cac, out, rea) in sorted(merged.items()):
+        inp = max(inp, cac)
+        out = max(out, rea)
+        row: dict = {
+            "model": m,
+            "serviceTier": t,
+            "inputTokens": inp,
+            "cachedInputTokens": cac,
+            "outputTokens": out,
+            "reasoningTokens": rea,
+        }
+        rows.append(row)
+    return rows[:1000]
 
 
 def truncate_utf8(s: str, max_bytes: int) -> str:
@@ -202,26 +249,90 @@ def _extract_codex_user_text(payload: dict) -> str | None:
     return None
 
 
+def _usage_delta(snapshot: dict[str, int | None], key: str, total_val, last_val) -> int:
+    if isinstance(total_val, (int, float)) and total_val >= 0:
+        t = int(total_val)
+        prev = snapshot[key]
+        if prev is not None:
+            if t <= prev:
+                return 0
+            delta = t - prev
+        else:
+            delta = t
+        snapshot[key] = t
+        return delta
+    if isinstance(last_val, (int, float)) and last_val >= 0:
+        lv = int(last_val)
+        prev = snapshot[key]
+        snapshot[key] = (prev + lv) if prev is not None else lv
+        return lv
+    return 0
+
+
 def _parse_codex_rollout(path: str, zstd_bin: str | None) -> dict | None:
     timestamps: list[int] = []
     session_id: str | None = None
     cwd: str | None = None
     branch: str | None = None
     model: str | None = None
+    service_tier: str = "default"
     reasoning_effort: str | None = None
     first_user_msg: str | None = None
 
-    tokens_total = 0
-    tokens_input = 0
-    tokens_cached = 0
-    tokens_output = 0
-    tokens_reasoning = 0
+    snapshot: dict[str, int | None] = {
+        "total": None,
+        "input": None,
+        "cached": None,
+        "output": None,
+        "reasoning": None,
+    }
+    totals = {"total": 0, "input": 0, "cached": 0, "output": 0, "reasoning": 0}
+    usage_buckets: dict[tuple[str, str], list[int]] = {}
     has_token_breakdown = False
 
     task_started_count = 0
     turn_context_count = 0
     user_msg_count = 0
     tool_call_count = 0
+
+    def apply_settings(settings: dict) -> None:
+        nonlocal model, service_tier
+        if not isinstance(settings, dict):
+            return
+        m = settings.get("model")
+        if isinstance(m, str) and m.strip():
+            model = m.strip()
+        if "service_tier" in settings and settings["service_tier"] is not None:
+            service_tier = normalize_service_tier(settings["service_tier"])
+
+    def observe_usage(total_obj: dict | None, last_obj: dict | None) -> None:
+        nonlocal has_token_breakdown
+        t = total_obj if isinstance(total_obj, dict) else {}
+        l = last_obj if isinstance(last_obj, dict) else {}
+        d_tot = _usage_delta(snapshot, "total", t.get("total_tokens"), l.get("total_tokens"))
+        d_inp = _usage_delta(snapshot, "input", t.get("input_tokens"), l.get("input_tokens"))
+        d_cac = _usage_delta(snapshot, "cached", t.get("cached_input_tokens"), l.get("cached_input_tokens"))
+        d_out = _usage_delta(snapshot, "output", t.get("output_tokens"), l.get("output_tokens"))
+        d_rea = _usage_delta(snapshot, "reasoning", t.get("reasoning_output_tokens"), l.get("reasoning_output_tokens"))
+
+        if d_tot or d_inp or d_cac or d_out or d_rea:
+            has_token_breakdown = True
+            totals["total"] += d_tot
+            totals["input"] += d_inp
+            totals["cached"] += d_cac
+            totals["output"] += d_out
+            totals["reasoning"] += d_rea
+
+        if d_inp > 0 or d_cac > 0 or d_out > 0 or d_rea > 0:
+            key = (model or "", service_tier)
+            b = usage_buckets.get(key)
+            if b is None:
+                b = [0, 0, 0, 0]
+                usage_buckets[key] = b
+            b[0] += d_inp
+            b[1] += d_cac
+            b[2] += d_out
+            b[3] += d_rea
 
     proc = None
     if path.endswith(".zst"):
@@ -272,17 +383,21 @@ def _parse_codex_rollout(path: str, zstd_bin: str | None) -> dict | None:
 
             elif t == "turn_context":
                 turn_context_count += 1
-                if isinstance(p.get("model"), str) and p["model"]:
-                    model = p["model"]
+                apply_settings(p)
                 eff = p.get("effort") or p.get("reasoning_effort")
                 if isinstance(eff, str) and eff:
                     reasoning_effort = eff
                 if not cwd and isinstance(p.get("cwd"), str) and p["cwd"]:
                     cwd = p["cwd"]
 
+            elif t == "token_usage_record":
+                observe_usage(p.get("thread_token_usage"), None)
+
             elif t == "event_msg":
                 pt = p.get("type")
-                if pt == "task_started":
+                if pt == "thread_settings_applied":
+                    apply_settings(p.get("thread_settings"))
+                elif pt == "task_started":
                     task_started_count += 1
                 elif pt == "user_message":
                     user_msg_count += 1
@@ -291,22 +406,10 @@ def _parse_codex_rollout(path: str, zstd_bin: str | None) -> dict | None:
                         if txt and not txt.startswith(("<environment_context>", "# AGENTS.md")):
                             first_user_msg = txt
                 elif pt == "token_count":
+                    apply_settings(p)
                     info = p.get("info")
                     if isinstance(info, dict):
-                        tu = info.get("total_token_usage")
-                        if isinstance(tu, dict):
-                            tot = int(tu.get("total_tokens") or 0)
-                            inp = int(tu.get("input_tokens") or 0)
-                            cac = int(tu.get("cached_input_tokens") or 0)
-                            out = int(tu.get("output_tokens") or 0)
-                            rea = int(tu.get("reasoning_output_tokens") or 0)
-                            if tot >= tokens_total:
-                                tokens_total = tot
-                                tokens_input = inp
-                                tokens_cached = min(cac, inp) if inp > 0 else 0
-                                tokens_output = out
-                                tokens_reasoning = min(rea, out) if out > 0 else 0
-                                has_token_breakdown = True
+                        observe_usage(info.get("total_token_usage"), info.get("last_token_usage"))
 
             elif t == "response_item":
                 pt = p.get("type")
@@ -329,20 +432,26 @@ def _parse_codex_rollout(path: str, zstd_bin: str | None) -> dict | None:
         if m:
             session_id = m.group(1)
 
+    tot_in = max(totals["input"], totals["cached"])
+    tot_out = max(totals["output"], totals["reasoning"])
+    tot_all = max(totals["total"], tot_in + tot_out)
+
     return {
         "session_id": session_id,
         "timestamps": timestamps,
         "cwd": cwd,
         "branch": branch,
         "model": model,
+        "service_tier": service_tier,
         "reasoning_effort": reasoning_effort,
         "first_user_msg": first_user_msg,
         "has_token_breakdown": has_token_breakdown,
-        "tokens_total": tokens_total,
-        "tokens_input": tokens_input,
-        "tokens_cached": tokens_cached,
-        "tokens_output": tokens_output,
-        "tokens_reasoning": tokens_reasoning,
+        "tokens_total": tot_all,
+        "tokens_input": tot_in,
+        "tokens_cached": min(totals["cached"], tot_in),
+        "tokens_output": tot_out,
+        "tokens_reasoning": min(totals["reasoning"], tot_out),
+        "usage_buckets": usage_buckets,
         "turn_count": task_started_count or turn_context_count or user_msg_count,
         "tool_call_count": tool_call_count,
     }
@@ -411,6 +520,7 @@ def collect_codex(
                     for k in (
                         "has_token_breakdown", "tokens_total", "tokens_input",
                         "tokens_cached", "tokens_output", "tokens_reasoning",
+                        "usage_buckets", "service_tier",
                     ):
                         ex_p[k] = p[k]
                 ex_p["turn_count"] = max(ex_p["turn_count"], p["turn_count"])
@@ -467,10 +577,17 @@ def collect_codex(
             rec["cwd"] = cwd
         if model:
             rec["model"] = model
+        if p and p["service_tier"] != "default":
+            rec["serviceTier"] = p["service_tier"]
         if branch:
             rec["branch"] = branch
         if effort:
             rec["reasoningEffort"] = effort
+
+        if p and p["usage_buckets"]:
+            ubm = finalize_usage_by_model(p["usage_buckets"], fallback_model=model)
+            if ubm:
+                rec["usageByModel"] = ubm
 
         if p and p["has_token_breakdown"] and p["tokens_total"] > 0:
             rec["tokens"] = {
@@ -602,13 +719,15 @@ def collect_claude_and_glm(
                     usage = msg.get("usage")
                     if isinstance(usage, dict):
                         mid = msg.get("id") or f"anon-{len(st['msg_usage'])}"
+                        m_name = model if (isinstance(model, str) and model and model != "<synthetic>") else ""
+                        m_tier = normalize_service_tier(usage.get("service_tier"))
                         inp = int(usage.get("input_tokens") or 0)
                         cr = int(usage.get("cache_read_input_tokens") or 0)
                         cc = int(usage.get("cache_creation_input_tokens") or 0)
                         out = int(usage.get("output_tokens") or 0)
                         prev = st["msg_usage"].get(mid)
-                        if prev is None or (inp + cr + cc + out) >= sum(prev):
-                            st["msg_usage"][mid] = (inp, cr, cc, out)
+                        if prev is None or (inp + cr + cc + out) >= sum(prev[2:]):
+                            st["msg_usage"][mid] = (m_name, m_tier, inp, cr, cc, out)
 
     records: list[dict] = []
     covered_intervals: list[tuple[int, int, str | None]] = []
@@ -640,10 +759,20 @@ def collect_claude_and_glm(
         tot_inp = 0
         tot_cr = 0
         tot_out = 0
-        for inp, cr, cc, out in st["msg_usage"].values():
-            tot_inp += inp + cr + cc
+        cc_buckets: dict[tuple[str, str], list[int]] = {}
+        tiers_seen: set[str] = set()
+        for m_name, m_tier, inp, cr, cc, out in st["msg_usage"].values():
+            full_inp = inp + cr + cc
+            tot_inp += full_inp
             tot_cr += cr
             tot_out += out
+            tiers_seen.add(m_tier)
+            bkey = (m_name or (top_model or ""), m_tier)
+            if bkey not in cc_buckets:
+                cc_buckets[bkey] = [0, 0, 0, 0]
+            cc_buckets[bkey][0] += full_inp
+            cc_buckets[bkey][1] += cr
+            cc_buckets[bkey][2] += out
         tot_all = tot_inp + tot_out
 
         rec: dict = {
@@ -658,8 +787,15 @@ def collect_claude_and_glm(
             rec["cwd"] = cwd
         if model:
             rec["model"] = model
+        if "fast" in tiers_seen:
+            rec["serviceTier"] = "fast"
+        elif "priority" in tiers_seen:
+            rec["serviceTier"] = "priority"
         if branch:
             rec["branch"] = branch
+        ubm = finalize_usage_by_model(cc_buckets, fallback_model=model)
+        if ubm:
+            rec["usageByModel"] = ubm
         if tot_all > 0:
             rec["tokens"] = {
                 "total": tot_all,
@@ -795,6 +931,7 @@ def collect_gemini_cli(gemini_dir: str, gap_ms: int = DEFAULT_GAP_MS) -> list[di
         tot_cached = 0
         tot_out = 0
         tot_reason = 0
+        gm_buckets: dict[tuple[str, str], list[int]] = {}
 
         for m in d.get("messages", []):
             if not isinstance(m, dict):
@@ -812,8 +949,9 @@ def collect_gemini_cli(gemini_dir: str, gap_ms: int = DEFAULT_GAP_MS) -> list[di
                         parts = [x["text"].strip() for x in c if isinstance(x, dict) and isinstance(x.get("text"), str) and x["text"].strip()]
                         if parts:
                             title = "\n".join(parts)
-            if isinstance(m.get("model"), str) and m["model"]:
-                models[m["model"]] += 1
+            m_name = m.get("model") if isinstance(m.get("model"), str) and m["model"] else ""
+            if m_name:
+                models[m_name] += 1
             if isinstance(m.get("toolCalls"), list):
                 tool_calls += len(m["toolCalls"])
             toks = m.get("tokens")
@@ -826,19 +964,30 @@ def collect_gemini_cli(gemini_dir: str, gap_ms: int = DEFAULT_GAP_MS) -> list[di
                 tot_cached += min(cac, inp)
                 tot_out += out + tho
                 tot_reason += tho
+                bkey = (m_name, "default")
+                if bkey not in gm_buckets:
+                    gm_buckets[bkey] = [0, 0, 0, 0]
+                gm_buckets[bkey][0] += inp
+                gm_buckets[bkey][1] += min(cac, inp)
+                gm_buckets[bkey][2] += out + tho
+                gm_buckets[bkey][3] += tho
 
         blocks = build_blocks(timestamps, s_ms, e_ms, gap_ms=gap_ms)
         if not blocks:
             continue
 
+        top_model = clean_meta(models.most_common(1)[0][0]) if models else None
         rec: dict = {
             "session": clean_session_key(sid),
             "agent": "gm",
             "title": clean_title(title) or f"Gemini CLI session {sid[:8]}",
             "blocks": blocks,
         }
-        if models:
-            rec["model"] = clean_meta(models.most_common(1)[0][0])
+        if top_model:
+            rec["model"] = top_model
+        ubm = finalize_usage_by_model(gm_buckets, fallback_model=top_model)
+        if ubm:
+            rec["usageByModel"] = ubm
         if tot_in + tot_out > 0:
             rec["tokens"] = {
                 "total": tot_in + tot_out,
@@ -945,6 +1094,17 @@ def collect_opencode(opencode_db: str, gap_ms: int = DEFAULT_GAP_MS) -> list[dic
                     "output": out,
                     "reasoning": min(reason, out),
                 }
+                if model_id:
+                    rec["usageByModel"] = [
+                        {
+                            "model": model_id,
+                            "serviceTier": "default",
+                            "inputTokens": inp,
+                            "cachedInputTokens": min(cached, inp),
+                            "outputTokens": out,
+                            "reasoningTokens": min(reason, out),
+                        }
+                    ]
             if turns > 0:
                 rec["turnCount"] = turns
             if tool_calls > 0:
@@ -1081,10 +1241,14 @@ def deduplicate_records(records: list[dict], gap_ms: int = DEFAULT_GAP_MS) -> li
             ex["blocks"] = build_blocks(pts, gap_ms=gap_ms)
             if r.get("tokens", {}).get("total", 0) > ex.get("tokens", {}).get("total", 0):
                 ex["tokens"] = r["tokens"]
+                if r.get("usageByModel"):
+                    ex["usageByModel"] = r["usageByModel"]
+                if r.get("serviceTier"):
+                    ex["serviceTier"] = r["serviceTier"]
             for field in ("turnCount", "toolCallCount"):
                 if r.get(field, 0) > ex.get(field, 0):
                     ex[field] = r[field]
-            for field in ("project", "cwd", "model", "branch", "reasoningEffort"):
+            for field in ("project", "cwd", "model", "branch", "reasoningEffort", "serviceTier"):
                 if not ex.get(field) and r.get(field):
                     ex[field] = r[field]
     return list(dedup.values())
