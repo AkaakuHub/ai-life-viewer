@@ -7,12 +7,6 @@ export function dayStart(time: number) {
   return Math.floor((time + JST) / DAY) * DAY - JST;
 }
 
-export function daysIn(start: number, end: number) {
-  const days: number[] = [];
-  for (let day = dayStart(start); day < end; day += DAY) days.push(day);
-  return days;
-}
-
 export type Metrics = {
   inputTokens?: number;
   cachedInputTokens?: number;
@@ -23,6 +17,7 @@ export type Metrics = {
 };
 
 export type Block = Metrics & {
+  estimatedCostUsd?: number;
   reasoningEffort?: string;
   gitSha?: string;
   gitOriginUrl?: string;
@@ -40,12 +35,18 @@ export type Block = Metrics & {
 };
 
 export type DayTotal = { day: number; ms: number };
-export type GroupTotal = { name: string; ms: number };
-export type BlockResult = { blocks: Block[]; days: DayTotal[] };
-export type Summary = Metrics & {
-  totalMs: number;
-  agents: GroupTotal[];
-  projects: GroupTotal[];
-  days: DayTotal[];
+type Cost = {
+  estimatedCostUsd?: number;
+  unpricedSessions?: number;
 };
+
+export type GroupTotal = Cost & { name: string; ms: number };
+export type BlockResult = { blocks: Block[]; days: DayTotal[] };
+export type Summary = Metrics &
+  Cost & {
+    totalMs: number;
+    agents: GroupTotal[];
+    projects: GroupTotal[];
+    days: DayTotal[];
+  };
 export type FilterOptions = { agents: string[]; projects: string[] };

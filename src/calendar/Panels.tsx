@@ -1,168 +1,154 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
-import { X } from "lucide-react";
+import {
+  Alert,
+  Group,
+  Modal,
+  Paper,
+  Progress,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from "@mantine/core";
 import {
   MINUTE,
   type Block,
-  type FilterOptions,
   type GroupTotal,
   type Metrics,
   type Summary,
 } from "../../shared/timeline.ts";
-import { clock, date, hours, monthNumber, weekday } from "./format.ts";
-import { isInputTarget } from "./gestures.ts";
+import { clock, date, hours, monthNumber, usd, weekday } from "./format.ts";
+import { Markdown } from "./Markdown.tsx";
+import { supplementaryPreview } from "./markdown.ts";
 import { monthTotals } from "./period.ts";
 
-export function Panel({
-  title,
+const closeButton = { "aria-label": "閉じる", size: 42 };
+const wrap = { overflowWrap: "anywhere" } as const;
+
+export function SummaryPanel({
+  opened,
   close,
-  children,
-  wide = false,
+  summary,
+  failed,
+  yearStart,
 }: {
-  title: ReactNode;
+  opened: boolean;
   close: () => void;
-  children: ReactNode;
-  wide?: boolean;
+  summary?: Summary;
+  failed?: boolean;
+  yearStart?: number;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-  useEffect(() => {
-    const dialog = ref.current;
-    dialog?.showModal();
-    return () => dialog?.close();
-  }, []);
   return (
-    <dialog
-      ref={ref}
-      className={wide ? "panel wide" : "panel"}
-      aria-labelledby={titleId}
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!isInputTarget(document.activeElement)) close();
-      }}
+    <Modal
+      opened={opened}
+      onClose={close}
+      title="集計"
+      size="lg"
+      centered
+      closeButtonProps={closeButton}
     >
-      <div className="panel-heading">
-        <div id={titleId} className="panel-title">
-          {typeof title === "string" ? <h2>{title}</h2> : title}
-        </div>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label="閉じる"
-          aria-keyshortcuts="Escape"
-          onClick={close}
-        >
-          <X size={19} />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
-}
-
-export type Selection = FilterOptions & { q: string };
-
-export function Filters({
-  options,
-  value,
-  change,
-}: {
-  options: FilterOptions;
-  value: Selection;
-  change: (value: Selection) => void;
-}) {
-  return (
-    <div className="filter-fields">
-      <label className="search-field">
-        検索
-        <input
-          type="search"
-          value={value.q}
-          onChange={(e) => change({ ...value, q: e.target.value })}
-        />
-      </label>
-      {(["agents", "projects"] as const).map((key) => (
-        <fieldset key={key}>
-          <legend>{key === "agents" ? "エージェント" : "プロジェクト"}</legend>
-          <div className="choices">
-            {options[key].map((item) => (
-              <label key={item}>
-                <input
-                  type="checkbox"
-                  checked={value[key].includes(item)}
-                  onChange={(e) =>
-                    change({
-                      ...value,
-                      [key]: e.target.checked
-                        ? [...value[key], item]
-                        : value[key].filter((entry) => entry !== item),
-                    })
-                  }
-                />
-                <span>{item}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
-      <button
-        className="toolbar-button"
-        type="button"
-        onClick={() => change({ agents: [], projects: [], q: "" })}
-      >
-        解除
-      </button>
-    </div>
+      {summary ? (
+        <SummaryContent summary={summary} yearStart={yearStart} />
+      ) : failed ? (
+        <Alert color="red" role="alert">
+          集計を取得できませんでした。
+        </Alert>
+      ) : (
+        <Text role="status">読み込み中</Text>
+      )}
+    </Modal>
   );
 }
 
 function Breakdown({ title, totals }: { title: string; totals: GroupTotal[] }) {
   return (
-    <section>
-      <h3>{title}</h3>
-      <dl className="breakdown">
-        {totals.map(({ name, ms }) => (
-          <div key={name}>
-            <dt>{name}</dt>
-            <dd>{hours(ms)}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <Stack component="section" gap="xs" miw={0}>
+      <Title order={3} size="sm">
+        {title}
+      </Title>
+      <Table layout="fixed">
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th scope="col">名前</Table.Th>
+            <Table.Th scope="col" ta="right">
+              稼働
+            </Table.Th>
+            <Table.Th scope="col" ta="right">
+              概算USD
+            </Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {totals.map(({ name, ms, estimatedCostUsd }) => (
+            <Table.Tr key={name}>
+              <Table.Th scope="row" fw={400} style={wrap}>
+                {name}
+              </Table.Th>
+              <Table.Td ta="right">{hours(ms)}</Table.Td>
+              <Table.Td ta="right" style={wrap}>
+                {usd(estimatedCostUsd)}
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Stack>
   );
 }
 
-export function SummaryContent({ summary, yearStart }: { summary: Summary; yearStart?: number }) {
+function SummaryContent({ summary, yearStart }: { summary: Summary; yearStart?: number }) {
   const monthly = yearStart !== undefined;
   const totals = monthly ? monthTotals(yearStart, summary.days) : summary.days;
   const max = Math.max(1, ...totals.map(({ ms }) => ms));
   return (
-    <div className="summary">
-      <div className="total">
-        <span>合計稼働時間</span>
-        <strong>{hours(summary.totalMs)}</strong>
-      </div>
+    <Stack gap="md">
+      <Paper withBorder p="sm">
+        <Group justify="space-between" align="start">
+          <div>
+            <Text size="sm" c="dimmed">
+              合計稼働時間
+            </Text>
+            <Text fw={700} size="xl">
+              {hours(summary.totalMs)}
+            </Text>
+          </div>
+          <div>
+            <Text size="sm" c="dimmed">
+              概算API料金
+            </Text>
+            <Text fw={700} size="xl">
+              {usd(summary.estimatedCostUsd)}
+            </Text>
+            {Boolean(summary.unpricedSessions) && (
+              <Text size="xs" c="dimmed">
+                未算出 {summary.unpricedSessions}件
+              </Text>
+            )}
+          </div>
+        </Group>
+      </Paper>
       <WorkMetrics metrics={summary} title="対象セッションの合計" />
-      <section>
-        <h3>{monthly ? "月別" : "日別"}</h3>
-        <ul className="daily-chart">
-          {totals.map(({ day, ms }) => (
-            <li key={day}>
-              <span>
-                {monthly ? monthNumber.format(day) : `${date.format(day)} (${weekday.format(day)})`}
-              </span>
-              <div className="bar-track">
-                <div style={{ width: `${(ms / max) * 100}%` }} />
-              </div>
-              <span>{hours(ms)}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <div className="summary-groups">
+      <Stack component="section" gap="xs">
+        <Title order={3} size="sm">
+          {monthly ? "月別" : "日別"}
+        </Title>
+        {totals.map(({ day, ms }) => (
+          <Group key={day} gap="xs" wrap="nowrap">
+            <Text size="sm" w={82} style={{ flexShrink: 0 }}>
+              {monthly ? monthNumber.format(day) : `${date.format(day)} (${weekday.format(day)})`}
+            </Text>
+            <Progress value={(ms / max) * 100} flex={1} aria-label={hours(ms)} />
+            <Text size="sm" miw={46} ta="right">
+              {hours(ms)}
+            </Text>
+          </Group>
+        ))}
+      </Stack>
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
         <Breakdown title="エージェント別" totals={summary.agents} />
         <Breakdown title="プロジェクト別" totals={summary.projects} />
-      </div>
-    </div>
+      </SimpleGrid>
+    </Stack>
   );
 }
 
@@ -178,17 +164,20 @@ const metricFields: Array<[keyof Metrics, string]> = [
 
 function Details({ fields }: { fields: Array<[string, string | undefined]> }) {
   return (
-    <dl className="details">
-      {fields.map(
-        ([label, value]) =>
-          value && (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ),
-      )}
-    </dl>
+    <Table layout="fixed">
+      <Table.Tbody>
+        {fields
+          .filter(([, value]) => value)
+          .map(([label, value]) => (
+            <Table.Tr key={label}>
+              <Table.Th scope="row" w="39%" fw={500} c="dimmed" style={wrap}>
+                {label}
+              </Table.Th>
+              <Table.Td style={wrap}>{value}</Table.Td>
+            </Table.Tr>
+          ))}
+      </Table.Tbody>
+    </Table>
   );
 }
 
@@ -200,40 +189,57 @@ function WorkMetrics({ metrics, title }: { metrics: Metrics; title: string }) {
   }
   return (
     fields.length > 0 && (
-      <section className="work-metrics">
-        <h3>{title}</h3>
+      <Stack component="section" gap="xs">
+        <Title order={3} size="sm">
+          {title}
+        </Title>
         <Details fields={fields} />
-      </section>
+      </Stack>
     )
   );
 }
 
-export function BlockDetails({ block }: { block: Block }) {
+export function BlockPanel({ block, close }: { block?: Block; close: () => void }) {
+  const preview = block && supplementaryPreview(block.title, block.preview);
   return (
-    <div className="detail-content">
-      <Details
-        fields={[
-          ["エージェント", block.agent],
-          ["プロジェクト", block.project],
-          ["作業ディレクトリ", block.cwd],
-          ["開始", `${date.format(block.start)} ${clock.format(block.start)}`],
-          ["終了", `${date.format(block.end)} ${clock.format(block.end)}`],
-          ["稼働時間", `${Math.round((block.end - block.start) / MINUTE)}分`],
-          ["モデル", block.model],
-          ["推論レベル", block.reasoningEffort],
-          ["Gitブランチ", block.branch],
-          ["Gitコミット", block.gitSha],
-          ["Gitリモート", block.gitOriginUrl],
-          ["合計トークン", block.tokens?.toLocaleString("ja-JP")],
-        ]}
-      />
-      <WorkMetrics metrics={block} title="セッションの集計" />
-      {block.preview && (
-        <section className="detail-preview">
-          <h3>概要</h3>
-          <p>{block.preview}</p>
-        </section>
+    <Modal
+      opened={Boolean(block)}
+      onClose={close}
+      size="lg"
+      centered
+      closeButtonProps={closeButton}
+      title={block?.title && <Markdown>{block.title}</Markdown>}
+    >
+      {block && (
+        <Stack gap="md">
+          <Details
+            fields={[
+              ["エージェント", block.agent],
+              ["プロジェクト", block.project],
+              ["作業ディレクトリ", block.cwd],
+              ["開始", `${date.format(block.start)} ${clock.format(block.start)}`],
+              ["終了", `${date.format(block.end)} ${clock.format(block.end)}`],
+              ["稼働時間", `${Math.round((block.end - block.start) / MINUTE)}分`],
+              ["モデル", block.model],
+              ["概算API料金（セッション）", usd(block.estimatedCostUsd)],
+              ["推論レベル", block.reasoningEffort],
+              ["Gitブランチ", block.branch],
+              ["Gitコミット", block.gitSha],
+              ["Gitリモート", block.gitOriginUrl],
+              ["合計トークン", block.tokens?.toLocaleString("ja-JP")],
+            ]}
+          />
+          <WorkMetrics metrics={block} title="セッションの集計" />
+          {preview && (
+            <Stack component="section" gap="xs">
+              <Title order={3} size="sm">
+                概要
+              </Title>
+              <Markdown>{preview}</Markdown>
+            </Stack>
+          )}
+        </Stack>
       )}
-    </div>
+    </Modal>
   );
 }

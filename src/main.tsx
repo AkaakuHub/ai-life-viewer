@@ -1,4 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import "@mantine/core/styles.css";
+import "@fullcalendar/react/skeleton.css";
+import "@fullcalendar/react/themes/monarch/theme.css";
+import "@fullcalendar/react/themes/monarch/palettes/blue.css";
+import {
+  ActionIcon,
+  Alert,
+  Box,
+  Button,
+  createTheme,
+  Group,
+  MantineProvider,
+  SegmentedControl,
+  Text,
+  Title,
+} from "@mantine/core";
+import { useWindowEvent } from "@mantine/hooks";
+import { useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ChartColumn, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import {
@@ -10,32 +27,20 @@ import {
 import { CalendarRegion } from "./calendar/CalendarRegion.tsx";
 import { isInputTarget } from "./calendar/gestures.ts";
 import { rangeLabel } from "./calendar/format.ts";
-import { Grid } from "./calendar/Grid.tsx";
-import { Markdown } from "./calendar/Markdown.tsx";
-import { MonthGrid, YearGrid } from "./calendar/Overview.tsx";
+import { Calendar } from "./calendar/Calendar.tsx";
 import { movePeriod, period, views, type View } from "./calendar/period.ts";
-import {
-  BlockDetails,
-  Filters,
-  Panel,
-  SummaryContent,
-  type Selection,
-} from "./calendar/Panels.tsx";
+import { Filters, type Selection } from "./calendar/Filters.tsx";
+import { BlockPanel, SummaryPanel } from "./calendar/Panels.tsx";
 import { useResource } from "./calendar/use-resource.ts";
 import "./style.css";
 
 function App() {
-  const [now, setNow] = useState(Date.now);
   const [anchor, setAnchor] = useState(Date.now);
   const [view, setView] = useState<View>(() =>
     window.matchMedia("(max-width: 600px)").matches ? "day" : "week",
   );
   const [panel, setPanel] = useState<"filters" | "summary" | Block>();
   const [selection, setSelection] = useState<Selection>({ agents: [], projects: [], q: "" });
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
-    return () => window.clearInterval(timer);
-  }, []);
   const { start, end } = period(view, anchor);
   const query = new URLSearchParams({ start: String(start), end: String(end), q: selection.q });
   for (const agent of selection.agents) query.append("agents", agent);
@@ -53,164 +58,148 @@ function App() {
     [view],
   );
   const goLatest = useCallback(() => setAnchor(Date.now()), []);
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (
-        panel ||
-        event.defaultPrevented ||
-        event.isComposing ||
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey ||
-        isInputTarget(event.target)
-      )
+  useWindowEvent("keydown", (event) => {
+    if (
+      panel ||
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      isInputTarget(event.target)
+    )
+      return;
+    switch (event.key) {
+      case "ArrowLeft":
+        move(-1);
+        break;
+      case "ArrowRight":
+        move(1);
+        break;
+      case "t":
+        goLatest();
+        break;
+      default:
         return;
-      switch (event.key) {
-        case "ArrowLeft":
-          move(-1);
-          break;
-        case "ArrowRight":
-          move(1);
-          break;
-        case "t":
-          goLatest();
-          break;
-        default:
-          return;
-      }
-      event.preventDefault();
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [goLatest, move, panel]);
+    event.preventDefault();
+  });
   const drillDown = (target: View, day: number) => {
     setAnchor(day);
     setView(target);
   };
+  const close = () => setPanel(undefined);
   return (
-    <main>
-      <header className="toolbar">
-        <h1>エージェント稼働時間</h1>
-        <div className="navigation">
-          <div className="arrows">
-            <button
-              className="icon-button"
-              type="button"
-              aria-label={`前の${views[view]}`}
-              aria-keyshortcuts="ArrowLeft"
-              onClick={() => move(-1)}
-            >
-              <ChevronLeft size={19} />
-            </button>
-            <button
-              className="icon-button"
-              type="button"
-              aria-label={`次の${views[view]}`}
-              aria-keyshortcuts="ArrowRight"
-              onClick={() => move(1)}
-            >
-              <ChevronRight size={19} />
-            </button>
-          </div>
-          <button className="toolbar-button" type="button" aria-keyshortcuts="T" onClick={goLatest}>
+    <Box component="main" h="100dvh" display="flex" style={{ flexDirection: "column" }}>
+      <Group component="header" p="sm" bg="dark.7" gap="xs" wrap="wrap">
+        <Title order={1} size="h5" w={{ base: "100%", md: "auto" }}>
+          エージェント稼働時間
+        </Title>
+        <Group gap={6} wrap="wrap">
+          <ActionIcon
+            variant="default"
+            size={42}
+            aria-label={`前の${views[view]}`}
+            aria-keyshortcuts="ArrowLeft"
+            onClick={() => move(-1)}
+          >
+            <ChevronLeft size={19} />
+          </ActionIcon>
+          <ActionIcon
+            variant="default"
+            size={42}
+            aria-label={`次の${views[view]}`}
+            aria-keyshortcuts="ArrowRight"
+            onClick={() => move(1)}
+          >
+            <ChevronRight size={19} />
+          </ActionIcon>
+          <Button variant="default" mih={42} aria-keyshortcuts="T" onClick={goLatest}>
             最新
-          </button>
-          <span className="range" aria-live="polite">
+          </Button>
+          <Text aria-live="polite" fw={650} style={{ whiteSpace: "nowrap" }}>
             {rangeLabel(view, start, end)}
-          </span>
-        </div>
-        <div className="toolbar-actions">
-          <div className="view-switch" aria-label="表示範囲" role="group">
-            {(["year", "month", "week", "day"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={view === option}
-                onClick={() => setView(option)}
-              >
-                {views[option]}
-              </button>
-            ))}
-          </div>
-          <button
-            className="toolbar-button"
-            type="button"
-            data-active={activeFilters}
+          </Text>
+        </Group>
+        <Group gap={6} wrap="wrap" ml={{ base: 0, md: "auto" }}>
+          <SegmentedControl<View>
+            aria-label="表示範囲"
+            value={view}
+            onChange={setView}
+            data={[
+              { value: "year", label: "年" },
+              { value: "month", label: "月" },
+              { value: "week", label: "週" },
+              { value: "day", label: "日" },
+            ]}
+            styles={{
+              label: { minHeight: 40, minWidth: 34, display: "grid", placeItems: "center" },
+            }}
+          />
+          <Button
+            variant={activeFilters ? "light" : "default"}
+            mih={42}
+            leftSection={<SlidersHorizontal size={16} />}
             onClick={() => setPanel("filters")}
           >
-            <SlidersHorizontal size={16} />
             絞り込み
-          </button>
-          <button className="toolbar-button" type="button" onClick={() => setPanel("summary")}>
-            <ChartColumn size={16} />
+          </Button>
+          <Button
+            variant="default"
+            mih={42}
+            leftSection={<ChartColumn size={16} />}
+            onClick={() => setPanel("summary")}
+          >
             集計
-          </button>
-        </div>
-      </header>
+          </Button>
+        </Group>
+      </Group>
       {(view === "year" ? summary?.error : blocks?.error) && (
-        <p className="notice" role="alert">
+        <Alert color="red" role="alert">
           稼働時間を取得できませんでした。
-        </p>
+        </Alert>
       )}
       <CalendarRegion week={view === "week"} move={move}>
-        {view === "year" ? (
-          <YearGrid
-            start={start}
-            now={now}
-            days={summary?.data?.days ?? []}
-            selectMonth={(day) => drillDown("month", day)}
-          />
-        ) : view === "month" ? (
-          <MonthGrid
-            start={start}
-            end={end}
-            now={now}
-            days={blocks?.data?.days ?? []}
-            blocks={blocks?.data?.blocks ?? []}
-            selectDay={(day) => drillDown("day", day)}
-          />
-        ) : (
-          <Grid
-            start={start}
-            end={end}
-            now={now}
-            blocks={blocks?.data?.blocks ?? []}
-            totals={blocks?.data?.days ?? []}
-            onSelect={setPanel}
-          />
-        )}
+        <Calendar
+          key={view}
+          view={view}
+          start={start}
+          blocks={blocks?.data?.blocks ?? []}
+          totals={(view === "year" ? summary?.data?.days : blocks?.data?.days) ?? []}
+          onSelect={setPanel}
+          drillDown={drillDown}
+        />
       </CalendarRegion>
-      {panel === "filters" && (
-        <Panel title="絞り込み" close={() => setPanel(undefined)}>
-          {options?.error && <p role="alert">絞り込みの項目を取得できませんでした。</p>}
-          <Filters
-            options={options?.data ?? { agents: [], projects: [] }}
-            value={selection}
-            change={setSelection}
-          />
-        </Panel>
-      )}
-      {panel === "summary" && (
-        <Panel title="集計" close={() => setPanel(undefined)} wide>
-          {summary?.data ? (
-            <SummaryContent
-              summary={summary.data}
-              yearStart={view === "year" ? start : undefined}
-            />
-          ) : (
-            <p role="status">{summary?.error ? "集計を取得できませんでした。" : "読み込み中"}</p>
-          )}
-        </Panel>
-      )}
-      {typeof panel === "object" && (
-        <Panel title={<Markdown>{panel.title}</Markdown>} close={() => setPanel(undefined)} wide>
-          <BlockDetails block={panel} />
-        </Panel>
-      )}
-    </main>
+      <Filters
+        opened={panel === "filters"}
+        close={close}
+        options={options?.data}
+        failed={options?.error}
+        value={selection}
+        change={setSelection}
+      />
+      <SummaryPanel
+        opened={panel === "summary"}
+        close={close}
+        summary={summary?.data}
+        failed={summary?.error}
+        yearStart={view === "year" ? start : undefined}
+      />
+      <BlockPanel block={typeof panel === "object" ? panel : undefined} close={close} />
+    </Box>
   );
 }
 
+const theme = createTheme({
+  fontFamily: 'Inter, "Noto Sans JP", system-ui, sans-serif',
+  defaultRadius: "md",
+});
+
 const root = document.getElementById("root");
-if (root) createRoot(root).render(<App />);
+if (root)
+  createRoot(root).render(
+    <MantineProvider forceColorScheme="dark" theme={theme}>
+      <App />
+    </MantineProvider>,
+  );

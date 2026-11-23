@@ -25,7 +25,7 @@ export function CalendarRegion({
       if (event.pointerType === "touch") reset();
       return;
     }
-    if (week && !(event.target instanceof Element && event.target.closest(".calendar-head")))
+    if (week && !(event.target instanceof Element && event.target.closest(".week-swipe-header")))
       return;
     start.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
   }

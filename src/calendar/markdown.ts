@@ -16,3 +16,15 @@ export function plainText(markdown: string) {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+export function supplementaryPreview(title: string, preview?: string) {
+  if (!preview) return undefined;
+  const normalized = plainText(preview);
+  const collapseWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+  if (
+    normalized &&
+    !plainText(title).includes(normalized) &&
+    !collapseWhitespace(title).includes(collapseWhitespace(preview))
+  )
+    return preview;
+}

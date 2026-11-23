@@ -45,3 +45,6 @@ export function blockColor(agent: string, project: string) {
   for (const letter of agent + project) hash = (Math.imul(hash, 31) + letter.charCodeAt(0)) >>> 0;
   return colors[hash % colors.length];
 }
+
+const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+export const usd = (value?: number) => (value === undefined ? "—" : dollars.format(value));
