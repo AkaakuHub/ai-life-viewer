@@ -1,4 +1,4 @@
-import { Alert, Button, Drawer, MultiSelect, Stack, TextInput } from "@mantine/core";
+import { Alert, Button, Drawer, Group, Loader, MultiSelect, Stack, TextInput } from "@mantine/core";
 import { useRef } from "react";
 import type { FilterOptions } from "../../shared/timeline.ts";
 
@@ -9,6 +9,7 @@ export function Filters({
   close,
   options,
   failed,
+  loading,
   value,
   change,
 }: {
@@ -16,6 +17,7 @@ export function Filters({
   close: () => void;
   options?: FilterOptions;
   failed?: boolean;
+  loading: boolean;
   value: Selection;
   change: (value: Selection, mode?: "push" | "replace") => void;
 }) {
@@ -51,12 +53,18 @@ export function Filters({
             editingSearch.current = true;
           }}
         />
+        {loading && (
+          <Group>
+            <Loader size="xs" role="status" aria-label="絞り込みの候補を読み込み中" />
+          </Group>
+        )}
         {(["agents", "projects"] as const).map((key) => (
           <MultiSelect
             key={key}
             label={key === "agents" ? "エージェント" : "プロジェクト"}
             data={options?.[key] ?? value[key]}
             value={value[key]}
+            disabled={loading}
             searchable
             clearable
             comboboxProps={{ withinPortal: false }}

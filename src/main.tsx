@@ -2,7 +2,7 @@ import "@mantine/core/styles.css";
 import "@fullcalendar/react/skeleton.css";
 import "@fullcalendar/react/themes/monarch/theme.css";
 import "@fullcalendar/react/themes/monarch/palettes/blue.css";
-import { Alert, AppShell, createTheme, MantineProvider, Text } from "@mantine/core";
+import { Alert, AppShell, createTheme, MantineProvider } from "@mantine/core";
 import { useWindowEvent } from "@mantine/hooks";
 import { lazy, Suspense, useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -14,6 +14,7 @@ import {
   type Summary,
   type UsageDay,
 } from "../shared/timeline.ts";
+import { DashboardSkeleton } from "./calendar/DashboardSkeleton.tsx";
 import { CalendarRegion } from "./calendar/CalendarRegion.tsx";
 import { isInputTarget } from "./calendar/gestures.ts";
 import { Calendar } from "./calendar/Calendar.tsx";
@@ -58,7 +59,7 @@ function App() {
     panel === "summary" && view !== "top" ? `/api/summary?${query}` : null,
   );
   const latest = period("year", Date.now()).start;
-  const earliest = dashboard?.data ? period("year", dashboard.data.history.start).start : latest;
+  const earliest = dashboard.data ? period("year", dashboard.data.history.start).start : latest;
   const jumpToYear = useCallback(
     (target: number) => {
       setJump({ start: target });
@@ -131,16 +132,11 @@ function App() {
       />
       <AppShell.Main flex={1} mih={0} display="flex" style={{ flexDirection: "column" }}>
         {view === "top" ? (
-          <Suspense
-            fallback={
-              <Text p="md" role="status">
-                読み込み中
-              </Text>
-            }
-          >
+          <Suspense fallback={<DashboardSkeleton />}>
             <Dashboard
-              summary={dashboard?.data}
-              failed={dashboard?.error}
+              summary={dashboard.data ?? dashboard.previousData}
+              failed={dashboard.error}
+              loading={dashboard.loading}
               openMonth={(day) => drillDown("month", day)}
             />
           </Suspense>
@@ -156,14 +152,18 @@ function App() {
               goLatest={goLatest}
               changeView={changeView}
             />
-            {(view === "year" ? dashboard?.error : blocks?.error) && (
+            {(view === "year" ? dashboard.error : blocks.error) && (
               <Alert color="red" role="alert">
                 稼働時間を取得できませんでした。
               </Alert>
             )}
-            <CalendarRegion week={view === "week"} move={move}>
+            <CalendarRegion
+              week={view === "week"}
+              move={move}
+              loading={view === "year" ? dashboard.loading : blocks.loading}
+            >
               {view === "year" ? (
-                dashboard?.data && (
+                dashboard.data && (
                   <YearCalendar
                     summary={dashboard.data}
                     anchor={anchor}
@@ -180,9 +180,9 @@ function App() {
                   key={view}
                   view={view}
                   start={start}
-                  blocks={blocks?.data?.blocks ?? []}
-                  totals={blocks?.data?.days ?? []}
-                  usageDays={blocks?.data?.accountUsage.days ?? []}
+                  blocks={blocks.data?.blocks ?? []}
+                  totals={blocks.data?.days ?? []}
+                  usageDays={blocks.data?.accountUsage.days ?? []}
                   onSelect={setPanel}
                   onUsageSelect={setPanel}
                   drillDown={drillDown}
@@ -195,16 +195,18 @@ function App() {
       <Filters
         opened={panel === "filters"}
         close={close}
-        options={options?.data}
-        failed={options?.error}
+        options={options.data}
+        failed={options.error}
+        loading={options.loading}
         value={selection}
         change={(selection, mode) => navigate({ selection }, mode)}
       />
       <SummaryPanel
         opened={panel === "summary"}
         close={close}
-        summary={summary?.data}
-        failed={summary?.error}
+        summary={summary.data}
+        failed={summary.error}
+        loading={summary.loading}
         yearStart={view === "year" ? start : undefined}
       />
       <BlockPanel

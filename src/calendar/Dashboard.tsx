@@ -1,9 +1,10 @@
 import "@mantine/charts/styles.css";
-import { Alert, Box, Card, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { Alert, Box, Card, Group, Loader, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import type { ReactNode } from "react";
 import type { DashboardSummary } from "../../shared/timeline.ts";
 import { Breakdown } from "./Breakdown.tsx";
 import { DashboardCount } from "./DashboardCount.tsx";
+import { DashboardSkeleton } from "./DashboardSkeleton.tsx";
 import { DashboardMonths } from "./DashboardMonths.tsx";
 import { AgentChart, ProjectChart } from "./charts/BreakdownCharts.tsx";
 import { MonthChart } from "./charts/MonthChart.tsx";
@@ -12,10 +13,12 @@ import { hours, usd } from "./format.ts";
 export default function Dashboard({
   summary,
   failed,
+  loading,
   openMonth,
 }: {
   summary?: DashboardSummary;
   failed?: boolean;
+  loading: boolean;
   openMonth: (day: number) => void;
 }) {
   if (!summary)
@@ -24,9 +27,7 @@ export default function Dashboard({
         全期間の集計を取得できませんでした。
       </Alert>
     ) : (
-      <Text p="md" role="status">
-        読み込み中
-      </Text>
+      <DashboardSkeleton />
     );
 
   const account = summary.accountUsage.summary;
@@ -65,9 +66,12 @@ export default function Dashboard({
     >
       <Stack px={{ base: "xs", sm: "lg" }} py="md" gap="lg" maw={1280} mx="auto">
         <Stack gap="xs">
-          <Title order={1} size="h4">
-            全期間
-          </Title>
+          <Group gap="xs">
+            <Title order={1} size="h4">
+              全期間
+            </Title>
+            {loading && <Loader size={16} role="status" aria-label="ダッシュボードを更新中" />}
+          </Group>
           <SimpleGrid cols={{ base: 2, sm: 4 }} spacing={{ base: "xs", sm: "md" }}>
             {cards.map(({ label, value, note }) => (
               <Card key={label} withBorder padding="sm">

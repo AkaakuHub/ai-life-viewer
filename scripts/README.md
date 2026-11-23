@@ -9,14 +9,14 @@
 
 ## 対応プロバイダー
 
-| 指定キー | エージェント | 参照パス |
-| :--- | :--- | :--- |
-| `cx` | Codex | `~/.codex/sessions/**/*.{jsonl,jsonl.zst}`, `~/.codex/state_5.sqlite` |
-| `cc` | Claude Code | `~/.claude/projects/**/*.jsonl`, `~/.claude/.claude-backup/projects/**/*.jsonl`, `~/.claude/history.jsonl` |
-| `glm` | GLM (Z.ai) | `~/.claude/projects/**/*.jsonl` 内の `glm-*` モデルセッション |
-| `gm` | Gemini CLI | `~/.gemini/tmp/**/chats/*.json` |
-| `oc` | OpenCode | `${XDG_DATA_HOME:-~/.local/share}/opencode/opencode.db` |
-| `ag` | Antigravity (T3 Code) | `~/.t3/userdata/statev2.sqlite` |
+| 指定キー | エージェント          | 参照パス                                                                                                   |
+| :------- | :-------------------- | :--------------------------------------------------------------------------------------------------------- |
+| `cx`     | Codex                 | `~/.codex/sessions/**/*.{jsonl,jsonl.zst}`, `~/.codex/state_5.sqlite`                                      |
+| `cc`     | Claude Code           | `~/.claude/projects/**/*.jsonl`, `~/.claude/.claude-backup/projects/**/*.jsonl`, `~/.claude/history.jsonl` |
+| `glm`    | GLM (Z.ai)            | `~/.claude/projects/**/*.jsonl` 内の `glm-*` モデルセッション                                              |
+| `gm`     | Gemini CLI            | `~/.gemini/tmp/**/chats/*.json`                                                                            |
+| `oc`     | OpenCode              | `${XDG_DATA_HOME:-~/.local/share}/opencode/opencode.db`                                                    |
+| `ag`     | Antigravity (T3 Code) | `~/.t3/userdata/statev2.sqlite`                                                                            |
 
 ## 使い方
 

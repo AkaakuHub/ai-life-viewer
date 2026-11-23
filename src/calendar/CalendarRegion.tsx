@@ -1,3 +1,4 @@
+import { Box, Loader, LoadingOverlay } from "@mantine/core";
 import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { swipeDirection } from "./gestures.ts";
 
@@ -6,10 +7,12 @@ type Start = { id: number; x: number; y: number };
 export function CalendarRegion({
   week,
   move,
+  loading,
   children,
 }: {
   week: boolean;
   move: (direction: number) => void;
+  loading: boolean;
   children: ReactNode;
 }) {
   const start = useRef<Start>(null);
@@ -61,7 +64,17 @@ export function CalendarRegion({
         if (event.target === event.currentTarget) reset();
       }}
     >
-      {children}
+      <Box h="100%" aria-busy={loading} inert={loading}>
+        {children}
+      </Box>
+      <LoadingOverlay
+        visible={loading}
+        zIndex={5}
+        overlayProps={{ backgroundOpacity: 0.24 }}
+        loaderProps={{
+          children: <Loader size="sm" role="status" aria-label="カレンダーを読み込み中" />,
+        }}
+      />
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import {
   Alert,
+  Center,
+  Loader,
   Group,
   Modal,
   Paper,
@@ -26,12 +28,14 @@ export function SummaryPanel({
   close,
   summary,
   failed,
+  loading,
   yearStart,
 }: {
   opened: boolean;
   close: () => void;
   summary?: Summary;
   failed?: boolean;
+  loading: boolean;
   yearStart?: number;
 }) {
   return (
@@ -49,9 +53,11 @@ export function SummaryPanel({
         <Alert color="red" role="alert">
           集計を取得できませんでした。
         </Alert>
-      ) : (
-        <Text role="status">読み込み中</Text>
-      )}
+      ) : loading ? (
+        <Center mih={128}>
+          <Loader size="sm" role="status" aria-label="集計を読み込み中" />
+        </Center>
+      ) : null}
     </Modal>
   );
 }
