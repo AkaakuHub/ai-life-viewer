@@ -25,18 +25,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	store, err := index.Open("data/agent-timeline.sqlite")
+	dataDir, err := dataDirectory(home)
+	if err != nil {
+		log.Fatal(err)
+	}
+	store, err := index.Open(filepath.Join(dataDir, "agent-timeline.sqlite"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer store.Close()
-	auth, err := ingest.LoadAuth("data/ingest.token")
+	auth, err := ingest.LoadAuth(filepath.Join(dataDir, "ingest.token"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	ctx := context.Background()
 	go store.Watch(ctx, home)
-	go store.WatchAccountUsage(ctx, "data")
+	go store.WatchAccountUsage(ctx, dataDir)
 	rates := pricing.Load(filepath.Join(home, ".t3/userdata/usage-model-rates.json"))
 	go rates.Watch(ctx)
 	server := http.Server{Addr: "127.0.0.1:4180", Handler: routes(store, rates, auth, os.DirFS("dist")), ReadHeaderTimeout: 5 * time.Second}

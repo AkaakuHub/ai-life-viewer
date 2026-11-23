@@ -126,7 +126,8 @@ function App() {
     setView(target);
   };
   const changeView = (target: AppView) => {
-    setJump(undefined);
+    if (target === "year") setAnchor(latest);
+    setJump(target === "year" ? { start: latest } : undefined);
     setView(target);
   };
   const close = () => setPanel(undefined);

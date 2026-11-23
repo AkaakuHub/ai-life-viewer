@@ -3,3 +3,5 @@
 /data/
 /cc-docs/
 /bin/
+*.sqlite*
+*.token

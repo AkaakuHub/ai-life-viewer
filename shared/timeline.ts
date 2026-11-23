@@ -42,8 +42,9 @@ export type Block = Metrics & {
   gitSha?: string;
   gitOriginUrl?: string;
   preview?: string;
-  provenance?: "rollout" | "turns" | "metadata" | "t3";
+  provenance?: "rollout" | "turns" | "metadata" | "t3" | "session";
   id: number;
+  session?: string;
   agent: string;
   title: string;
   project: string;

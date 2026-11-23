@@ -10,7 +10,7 @@ export type YearJump = { start: number };
 
 function splitYears(summary: DashboardSummary, earliest: number, latest: number) {
   const years = new Map<number, { totals: DayTotal[]; usageDays: UsageDay[] }>();
-  for (let year = latest; year >= earliest; year = movePeriod("year", year, -1)) {
+  for (let year = earliest; year <= latest; year = movePeriod("year", year, 1)) {
     years.set(year, { totals: [], usageDays: [] });
   }
   for (const day of summary.days) {
@@ -63,7 +63,7 @@ export function YearCalendar({
     };
     const frame = requestAnimationFrame(place);
     const stack = viewport.firstElementChild;
-    if (!first || start === latest || !stack) return () => cancelAnimationFrame(frame);
+    if (!first || start === earliest || !stack) return () => cancelAnimationFrame(frame);
     const observer = new ResizeObserver(place);
     observer.observe(stack);
     const timer = window.setTimeout(() => observer.disconnect(), 250);
@@ -81,7 +81,7 @@ export function YearCalendar({
       aria-label="年別カレンダー"
       onScroll={(event) => {
         const edge = event.currentTarget.getBoundingClientRect().top + 12;
-        let year = latest;
+        let year = earliest;
         for (const [start] of years) {
           const section = sections.current.get(start);
           if (section && section.getBoundingClientRect().top <= edge) year = start;

@@ -4,7 +4,7 @@
   "description": "Send missing history from another machine (for example a Mac) into the existing database. Writes are atomic idempotent upserts by (agent, session) and (agent, day).",
   "authentication": {
     "writes": "Authorization: Bearer <token>",
-    "token": "Server environment variable AGENT_TIMELINE_INGEST_TOKEN; otherwise read the generated data/ingest.token on the server.",
+    "token": "Server environment variable AGENT_TIMELINE_INGEST_TOKEN; otherwise read ingest.token in the server data directory (AGENT_TIMELINE_DATA_DIR, or $XDG_DATA_HOME/ai-life-viewer, or ~/.local/share/ai-life-viewer).",
     "reads": "No token required"
   },
   "endpoints": {
