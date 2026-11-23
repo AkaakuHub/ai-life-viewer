@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"agent-timeline/internal/index"
+	"agent-timeline/internal/pricing"
 	"agent-timeline/internal/timeline"
 )
 
@@ -27,13 +29,16 @@ func main() {
 		log.Fatal(err)
 	}
 	defer store.Close()
-	go store.Watch(context.Background(), home)
-	server := http.Server{Addr: "127.0.0.1:4180", Handler: routes(store, os.DirFS("dist")), ReadHeaderTimeout: 5 * time.Second}
+	ctx := context.Background()
+	go store.Watch(ctx, home)
+	rates := pricing.Load(filepath.Join(home, ".t3/userdata/usage-model-rates.json"))
+	go rates.Watch(ctx)
+	server := http.Server{Addr: "127.0.0.1:4180", Handler: routes(store, rates, os.DirFS("dist")), ReadHeaderTimeout: 5 * time.Second}
 	log.Printf("listening on http://%s", server.Addr)
 	log.Fatal(server.ListenAndServe())
 }
 
-func routes(store *index.Store, dist fs.FS) http.Handler {
+func routes(store *index.Store, rates *pricing.Source, dist fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	rangeRoute := func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
@@ -48,6 +53,11 @@ func routes(store *index.Store, dist fs.FS) http.Handler {
 		if err != nil {
 			respond(w, struct{}{}, err)
 			return
+		}
+		catalog := rates.Catalog()
+		for i := range blocks {
+			b := &blocks[i]
+			b.EstimatedCostUSD = catalog.Estimate(b.Model, b.InputTokens, b.CachedInputTokens, b.OutputTokens)
 		}
 		summary := timeline.Summarize(blocks, start, end)
 		if r.URL.Path == "/api/summary" {
