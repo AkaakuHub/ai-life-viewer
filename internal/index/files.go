@@ -82,7 +82,7 @@ func (s *Store) indexFile(path, agent string, info os.FileInfo) error {
 			return err
 		}
 	}
-	if err := saveIntervals(tx, path, mergeIntervals(append(spans, events...))); err != nil {
+	if err := saveIntervals(tx, path, mergeIntervals(append(spans, events...)), minute); err != nil {
 		return err
 	}
 	_, err = tx.Exec(`INSERT INTO files(path,mtime_ns,size,byte_offset,device,inode,metadata_version) VALUES(?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET
@@ -111,7 +111,7 @@ func saveSource(tx *sql.Tx, key string, m source) error {
 	return err
 }
 
-func saveIntervals(tx *sql.Tx, key string, spans []interval) error {
+func saveIntervals(tx *sql.Tx, key string, spans []interval, minimum int64) error {
 	if _, err := tx.Exec("DELETE FROM blocks WHERE source=?", key); err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func saveIntervals(tx *sql.Tx, key string, spans []interval) error {
 	}
 	defer stmt.Close()
 	for _, span := range spans {
-		if _, err := stmt.Exec(key, span.Start, span.Last, span.end()); err != nil {
+		if _, err := stmt.Exec(key, span.Start, span.Last, span.end(minimum)); err != nil {
 			return err
 		}
 	}

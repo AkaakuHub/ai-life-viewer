@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -37,16 +38,17 @@ func (s *Store) syncCodex(path string) error {
 		return err
 	}
 	defer db.Close()
-	mark, err := watermark(s.db, "codex_metadata")
+	mark, err := watermark(s.db, "codex_metadata_v2")
 	if err != nil {
 		return err
 	}
 	if mark == "" {
 		mark = "0"
 	}
-	rows, err := db.Query(`SELECT id,title,cwd,COALESCE(model,''),COALESCE(git_branch,''),tokens_used,updated_at_ms,
+	rows, err := db.Query(`SELECT id,title,cwd,COALESCE(model,''),COALESCE(git_branch,''),tokens_used,COALESCE(updated_at_ms,updated_at*1000),
+		COALESCE(created_at_ms,created_at*1000),
 		COALESCE(reasoning_effort,''),COALESCE(git_sha,''),COALESCE(git_origin_url,''),substr(trim(preview),1,240)
-		FROM threads WHERE updated_at_ms >= CAST(? AS INTEGER) ORDER BY updated_at_ms`, mark)
+		FROM threads WHERE COALESCE(updated_at_ms,updated_at*1000) >= CAST(? AS INTEGER) ORDER BY COALESCE(updated_at_ms,updated_at*1000)`, mark)
 	if err != nil {
 		return err
 	}
@@ -58,8 +60,8 @@ func (s *Store) syncCodex(path string) error {
 	defer tx.Rollback()
 	for rows.Next() {
 		var m source
-		var tokens int64
-		if err := rows.Scan(&m.Session, &m.Title, &m.CWD, &m.Model, &m.Branch, &tokens, &mark, &m.ReasoningEffort, &m.GitSHA, &m.GitOriginURL, &m.Preview); err != nil {
+		var tokens, created, updated int64
+		if err := rows.Scan(&m.Session, &m.Title, &m.CWD, &m.Model, &m.Branch, &tokens, &updated, &created, &m.ReasoningEffort, &m.GitSHA, &m.GitOriginURL, &m.Preview); err != nil {
 			return err
 		}
 		_, err := tx.Exec(`INSERT INTO codex(session,title,cwd,model,branch,tokens,project,reasoning_effort,git_sha,git_origin_url,preview)
@@ -73,11 +75,22 @@ func (s *Store) syncCodex(path string) error {
 		if err != nil {
 			return err
 		}
+		mark = strconv.FormatInt(updated, 10)
+		if span, ok := metadataSpan(created, updated); ok {
+			key := "codex:metadata:" + m.Session
+			m.Agent = "cx"
+			if err := saveSource(tx, key, source{Agent: m.Agent, Session: m.Session, Project: projectName(m.CWD)}); err != nil {
+				return err
+			}
+			if err := saveIntervals(tx, key, []interval{span}, 0); err != nil {
+				return err
+			}
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if err := writeWatermark(tx, "codex_metadata", mark); err != nil {
+	if err := writeWatermark(tx, "codex_metadata_v2", mark); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -153,7 +166,7 @@ func (s *Store) syncT3(path string) error {
 		if err := saveSource(tx, key, m); err != nil {
 			return err
 		}
-		if err := saveIntervals(tx, key, []interval{{from.UnixMilli(), to.UnixMilli()}}); err != nil {
+		if err := saveIntervals(tx, key, []interval{{from.UnixMilli(), to.UnixMilli()}}, minute); err != nil {
 			return err
 		}
 	}

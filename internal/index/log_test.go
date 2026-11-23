@@ -22,7 +22,7 @@ func TestParseLogResumesAtIncompleteLine(t *testing.T) {
 		t.Fatalf("incremental parse: spans=%v consumed=%d metadata=%+v err=%v", events, consumed, meta, err)
 	}
 	merged := mergeIntervals(append(spans, events...))
-	if len(merged) != 1 || merged[0].end()-merged[0].Start != 3*minute {
+	if len(merged) != 1 || merged[0].end(minute)-merged[0].Start != 3*minute {
 		t.Fatalf("append should extend the current block: %+v", merged)
 	}
 }
@@ -32,7 +32,7 @@ func TestMergeIntervalsUsesRawGapAndOneMinuteMinimum(t *testing.T) {
 	out := mergeIntervals([]interval{
 		{base + 11*minute, base + 11*minute}, {base, base}, {base + 5*minute, base + 5*minute},
 	})
-	if len(out) != 2 || out[0].end() != base+5*minute || out[1].end() != base+12*minute {
+	if len(out) != 2 || out[0].end(minute) != base+5*minute || out[1].end(minute) != base+12*minute {
 		t.Fatalf("unexpected work intervals: %+v", out)
 	}
 }

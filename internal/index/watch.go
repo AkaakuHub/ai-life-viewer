@@ -92,6 +92,7 @@ func (s *Store) sync(ctx context.Context, home string, w *fsnotify.Watcher, meta
 	}
 	if metadata {
 		report(s.syncCodex(filepath.Join(home, ".codex/state_5.sqlite")))
+		report(s.syncCodexTurns(filepath.Join(home, ".codex/thread_history_1.sqlite")))
 		report(s.syncT3(filepath.Join(home, ".t3/userdata/statev2.sqlite")))
 	}
 	var files []logFile

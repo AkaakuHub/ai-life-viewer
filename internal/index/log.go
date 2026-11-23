@@ -27,7 +27,7 @@ type interval struct{ Start, Last int64 }
 
 const minute = int64(time.Minute / time.Millisecond)
 
-func (i interval) end() int64 { return max(i.Last, i.Start+minute) }
+func (i interval) end(minimum int64) int64 { return max(i.Last, i.Start+minimum) }
 
 func mergeIntervals(spans []interval) []interval {
 	sort.Slice(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })

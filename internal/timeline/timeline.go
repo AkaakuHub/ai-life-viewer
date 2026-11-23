@@ -16,6 +16,7 @@ type Block struct {
 	ReasoningEffort  string   `json:"reasoningEffort,omitempty"`
 	GitSHA           string   `json:"gitSha,omitempty"`
 	GitOriginURL     string   `json:"gitOriginUrl,omitempty"`
+	Provenance       string   `json:"provenance,omitempty"`
 	Preview          string   `json:"preview,omitempty"`
 	ID               int64    `json:"id"`
 	Agent            string   `json:"agent"`

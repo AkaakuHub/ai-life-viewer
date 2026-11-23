@@ -31,6 +31,7 @@ func main() {
 	defer store.Close()
 	ctx := context.Background()
 	go store.Watch(ctx, home)
+	go store.WatchAccountUsage(ctx, "data")
 	rates := pricing.Load(filepath.Join(home, ".t3/userdata/usage-model-rates.json"))
 	go rates.Watch(ctx)
 	server := http.Server{Addr: "127.0.0.1:4180", Handler: routes(store, rates, os.DirFS("dist")), ReadHeaderTimeout: 5 * time.Second}
@@ -60,14 +61,23 @@ func routes(store *index.Store, rates *pricing.Source, dist fs.FS) http.Handler 
 			b.EstimatedCostUSD = catalog.Estimate(b.Model, b.InputTokens, b.CachedInputTokens, b.OutputTokens)
 		}
 		summary := timeline.Summarize(blocks, start, end)
+		usage, err := store.AccountUsage(start, end)
+		if err != nil {
+			respond(w, struct{}{}, err)
+			return
+		}
 		if r.URL.Path == "/api/summary" {
-			respond(w, summary, nil)
+			respond(w, struct {
+				timeline.Summary
+				AccountUsage index.AccountUsage `json:"accountUsage"`
+			}{summary, usage}, nil)
 			return
 		}
 		respond(w, struct {
-			Blocks []timeline.Block    `json:"blocks"`
-			Days   []timeline.DayTotal `json:"days"`
-		}{blocks, summary.Days}, nil)
+			Blocks       []timeline.Block    `json:"blocks"`
+			Days         []timeline.DayTotal `json:"days"`
+			AccountUsage index.AccountUsage  `json:"accountUsage"`
+		}{blocks, summary.Days, usage}, nil)
 	}
 	mux.HandleFunc("GET /api/blocks", rangeRoute)
 	mux.HandleFunc("GET /api/summary", rangeRoute)
