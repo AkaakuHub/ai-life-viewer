@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ChartColumn, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import {
@@ -7,6 +7,8 @@ import {
   type FilterOptions,
   type Summary,
 } from "../shared/timeline.ts";
+import { CalendarRegion } from "./calendar/CalendarRegion.tsx";
+import { isInputTarget } from "./calendar/gestures.ts";
 import { rangeLabel } from "./calendar/format.ts";
 import { Grid } from "./calendar/Grid.tsx";
 import { Markdown } from "./calendar/Markdown.tsx";
@@ -46,7 +48,42 @@ function App() {
   const activeFilters = Boolean(
     selection.q || selection.agents.length || selection.projects.length,
   );
-  const move = (direction: number) => setAnchor((current) => movePeriod(view, current, direction));
+  const move = useCallback(
+    (direction: number) => setAnchor((current) => movePeriod(view, current, direction)),
+    [view],
+  );
+  const goLatest = useCallback(() => setAnchor(Date.now()), []);
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (
+        panel ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        isInputTarget(event.target)
+      )
+        return;
+      switch (event.key) {
+        case "ArrowLeft":
+          move(-1);
+          break;
+        case "ArrowRight":
+          move(1);
+          break;
+        case "t":
+          goLatest();
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goLatest, move, panel]);
   const drillDown = (target: View, day: number) => {
     setAnchor(day);
     setView(target);
@@ -61,6 +98,7 @@ function App() {
               className="icon-button"
               type="button"
               aria-label={`前の${views[view]}`}
+              aria-keyshortcuts="ArrowLeft"
               onClick={() => move(-1)}
             >
               <ChevronLeft size={19} />
@@ -69,12 +107,13 @@ function App() {
               className="icon-button"
               type="button"
               aria-label={`次の${views[view]}`}
+              aria-keyshortcuts="ArrowRight"
               onClick={() => move(1)}
             >
               <ChevronRight size={19} />
             </button>
           </div>
-          <button className="toolbar-button" type="button" onClick={() => setAnchor(Date.now())}>
+          <button className="toolbar-button" type="button" aria-keyshortcuts="T" onClick={goLatest}>
             最新
           </button>
           <span className="range" aria-live="polite">
@@ -114,32 +153,34 @@ function App() {
           稼働時間を取得できませんでした。
         </p>
       )}
-      {view === "year" ? (
-        <YearGrid
-          start={start}
-          now={now}
-          days={summary?.data?.days ?? []}
-          selectMonth={(day) => drillDown("month", day)}
-        />
-      ) : view === "month" ? (
-        <MonthGrid
-          start={start}
-          end={end}
-          now={now}
-          days={blocks?.data?.days ?? []}
-          blocks={blocks?.data?.blocks ?? []}
-          selectDay={(day) => drillDown("day", day)}
-        />
-      ) : (
-        <Grid
-          start={start}
-          end={end}
-          now={now}
-          blocks={blocks?.data?.blocks ?? []}
-          totals={blocks?.data?.days ?? []}
-          onSelect={setPanel}
-        />
-      )}
+      <CalendarRegion week={view === "week"} move={move}>
+        {view === "year" ? (
+          <YearGrid
+            start={start}
+            now={now}
+            days={summary?.data?.days ?? []}
+            selectMonth={(day) => drillDown("month", day)}
+          />
+        ) : view === "month" ? (
+          <MonthGrid
+            start={start}
+            end={end}
+            now={now}
+            days={blocks?.data?.days ?? []}
+            blocks={blocks?.data?.blocks ?? []}
+            selectDay={(day) => drillDown("day", day)}
+          />
+        ) : (
+          <Grid
+            start={start}
+            end={end}
+            now={now}
+            blocks={blocks?.data?.blocks ?? []}
+            totals={blocks?.data?.days ?? []}
+            onSelect={setPanel}
+          />
+        )}
+      </CalendarRegion>
       {panel === "filters" && (
         <Panel title="絞り込み" close={() => setPanel(undefined)}>
           {options?.error && <p role="alert">絞り込みの項目を取得できませんでした。</p>}

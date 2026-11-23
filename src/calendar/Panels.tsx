@@ -1,8 +1,15 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
-import type { Block, FilterOptions, GroupTotal, Summary } from "../../shared/timeline.ts";
+import {
+  MINUTE,
+  type Block,
+  type FilterOptions,
+  type GroupTotal,
+  type Metrics,
+  type Summary,
+} from "../../shared/timeline.ts";
 import { clock, date, hours, monthNumber, weekday } from "./format.ts";
-
+import { isInputTarget } from "./gestures.ts";
 import { monthTotals } from "./period.ts";
 
 export function Panel({
@@ -30,14 +37,20 @@ export function Panel({
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
-        close();
+        if (!isInputTarget(document.activeElement)) close();
       }}
     >
       <div className="panel-heading">
         <div id={titleId} className="panel-title">
           {typeof title === "string" ? <h2>{title}</h2> : title}
         </div>
-        <button className="icon-button" type="button" aria-label="閉じる" onClick={close}>
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="閉じる"
+          aria-keyshortcuts="Escape"
+          onClick={close}
+        >
           <X size={19} />
         </button>
       </div>
@@ -128,6 +141,7 @@ export function SummaryContent({ summary, yearStart }: { summary: Summary; yearS
         <span>合計稼働時間</span>
         <strong>{hours(summary.totalMs)}</strong>
       </div>
+      <WorkMetrics metrics={summary} title="対象セッションの合計" />
       <section>
         <h3>{monthly ? "月別" : "日別"}</h3>
         <ul className="daily-chart">
@@ -152,26 +166,74 @@ export function SummaryContent({ summary, yearStart }: { summary: Summary; yearS
   );
 }
 
-export function BlockDetails({ block }: { block: Block }) {
-  const fields = [
-    ["エージェント", block.agent],
-    ["プロジェクト", block.project],
-    ["作業ディレクトリ", block.cwd],
-    ["開始", `${date.format(block.start)} ${clock.format(block.start)}`],
-    ["終了", `${date.format(block.end)} ${clock.format(block.end)}`],
-    ["稼働時間", `${Math.round((block.end - block.start) / 60_000)}分`],
-    ["モデル", block.model],
-    ["Gitブランチ", block.branch],
-    ["トークン", block.tokens?.toLocaleString("ja-JP")],
-  ];
+const count = new Intl.NumberFormat("ja-JP");
+const metricFields: Array<[keyof Metrics, string]> = [
+  ["inputTokens", "入力トークン"],
+  ["cachedInputTokens", "キャッシュ済み入力"],
+  ["outputTokens", "出力トークン"],
+  ["reasoningTokens", "推論トークン"],
+  ["turnCount", "ターン数"],
+  ["toolCallCount", "ツール呼び出し"],
+];
+
+function Details({ fields }: { fields: Array<[string, string | undefined]> }) {
   return (
     <dl className="details">
-      {fields.map(([label, value]) => (
-        <div key={label}>
-          <dt>{label}</dt>
-          <dd>{value || "—"}</dd>
-        </div>
-      ))}
+      {fields.map(
+        ([label, value]) =>
+          value && (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ),
+      )}
     </dl>
+  );
+}
+
+function WorkMetrics({ metrics, title }: { metrics: Metrics; title: string }) {
+  const fields: Array<[string, string]> = [];
+  for (const [key, label] of metricFields) {
+    const value = metrics[key];
+    if (value !== undefined) fields.push([label, count.format(value)]);
+  }
+  return (
+    fields.length > 0 && (
+      <section className="work-metrics">
+        <h3>{title}</h3>
+        <Details fields={fields} />
+      </section>
+    )
+  );
+}
+
+export function BlockDetails({ block }: { block: Block }) {
+  return (
+    <div className="detail-content">
+      <Details
+        fields={[
+          ["エージェント", block.agent],
+          ["プロジェクト", block.project],
+          ["作業ディレクトリ", block.cwd],
+          ["開始", `${date.format(block.start)} ${clock.format(block.start)}`],
+          ["終了", `${date.format(block.end)} ${clock.format(block.end)}`],
+          ["稼働時間", `${Math.round((block.end - block.start) / MINUTE)}分`],
+          ["モデル", block.model],
+          ["推論レベル", block.reasoningEffort],
+          ["Gitブランチ", block.branch],
+          ["Gitコミット", block.gitSha],
+          ["Gitリモート", block.gitOriginUrl],
+          ["合計トークン", block.tokens?.toLocaleString("ja-JP")],
+        ]}
+      />
+      <WorkMetrics metrics={block} title="セッションの集計" />
+      {block.preview && (
+        <section className="detail-preview">
+          <h3>概要</h3>
+          <p>{block.preview}</p>
+        </section>
+      )}
+    </div>
   );
 }

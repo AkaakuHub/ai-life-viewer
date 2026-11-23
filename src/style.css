@@ -301,7 +301,7 @@ h1 {
   font-weight: 700;
   overflow-wrap: anywhere;
 }
-.summary h3 {
+.panel :is(.summary, .detail-content) h3 {
   font-size: 14px;
   font-weight: 650;
   margin-bottom: 8px;
@@ -452,7 +452,6 @@ fieldset {
     width: 44px;
   }
   .view-switch button {
-    min-height: 38px;
     min-width: 40px;
   }
   .panel {
@@ -469,5 +468,53 @@ fieldset {
   }
   .summary-groups {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.detail-content {
+  display: grid;
+  gap: 16px;
+}
+.detail-preview p {
+  font-size: 13px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.work-metrics dd {
+  text-align: end;
+}
+.calendar-region {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.calendar-region:not([data-week]) :is(.calendar-scroll, .overview),
+.calendar-region[data-week] .calendar-head {
+  touch-action: pan-y pinch-zoom;
+}
+.calendar-region[data-swipe]::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  inset-block: 0;
+  width: 14px;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.calendar-region[data-swipe="previous"]::after {
+  inset-inline-start: 0;
+  background: linear-gradient(to right, #8baaff90, transparent);
+}
+.calendar-region[data-swipe="next"]::after {
+  inset-inline-end: 0;
+  background: linear-gradient(to left, #8baaff90, transparent);
+}
+@media (max-width: 600px) {
+  .view-switch button,
+  .choices label {
+    min-height: 40px;
   }
 }

@@ -13,7 +13,20 @@ export function daysIn(start: number, end: number) {
   return days;
 }
 
-export type Block = {
+export type Metrics = {
+  inputTokens?: number;
+  cachedInputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  turnCount?: number;
+  toolCallCount?: number;
+};
+
+export type Block = Metrics & {
+  reasoningEffort?: string;
+  gitSha?: string;
+  gitOriginUrl?: string;
+  preview?: string;
   id: number;
   agent: string;
   title: string;
@@ -29,7 +42,7 @@ export type Block = {
 export type DayTotal = { day: number; ms: number };
 export type GroupTotal = { name: string; ms: number };
 export type BlockResult = { blocks: Block[]; days: DayTotal[] };
-export type Summary = {
+export type Summary = Metrics & {
   totalMs: number;
   agents: GroupTotal[];
   projects: GroupTotal[];
