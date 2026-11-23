@@ -19,7 +19,7 @@ export function DashboardMonths({
   return (
     <Stack component="section" gap="xs">
       <Title order={2} size="h4">
-        月別推移
+        月別明細
       </Title>
       <Paper withBorder>
         <Table.ScrollContainer minWidth={330} type="native">

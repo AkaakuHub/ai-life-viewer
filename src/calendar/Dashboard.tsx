@@ -1,12 +1,15 @@
+import "@mantine/charts/styles.css";
 import { Alert, Box, Card, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import type { ReactNode } from "react";
 import type { DashboardSummary } from "../../shared/timeline.ts";
 import { Breakdown } from "./Breakdown.tsx";
 import { DashboardCount } from "./DashboardCount.tsx";
 import { DashboardMonths } from "./DashboardMonths.tsx";
+import { AgentChart, ProjectChart } from "./charts/BreakdownCharts.tsx";
+import { MonthChart } from "./charts/MonthChart.tsx";
 import { hours, usd } from "./format.ts";
 
-export function Dashboard({
+export default function Dashboard({
   summary,
   failed,
   openMonth,
@@ -83,6 +86,11 @@ export function Dashboard({
             ))}
           </SimpleGrid>
         </Stack>
+        <MonthChart months={summary.history.months} openMonth={openMonth} />
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing={{ base: "xs", sm: "md" }}>
+          <AgentChart agents={summary.agents} />
+          <ProjectChart projects={summary.projects} />
+        </SimpleGrid>
         <DashboardMonths months={summary.history.months} openMonth={openMonth} />
         <SimpleGrid cols={{ base: 1, md: 2 }}>
           <Breakdown title="エージェント別" totals={summary.agents} />

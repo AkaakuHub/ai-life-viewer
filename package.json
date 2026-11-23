@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@fullcalendar/react": "^7.1.5",
+    "@mantine/charts": "9.8.2",
     "@mantine/core": "^9.8.2",
     "@mantine/hooks": "^9.8.2",
     "lucide-react": "^1.77.0",
@@ -15,6 +16,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",
+    "recharts": "^3.11.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "temporal-polyfill": "^1.0.8",

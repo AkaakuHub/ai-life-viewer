@@ -2,9 +2,9 @@ import "@mantine/core/styles.css";
 import "@fullcalendar/react/skeleton.css";
 import "@fullcalendar/react/themes/monarch/theme.css";
 import "@fullcalendar/react/themes/monarch/palettes/blue.css";
-import { Alert, AppShell, createTheme, MantineProvider } from "@mantine/core";
+import { Alert, AppShell, createTheme, MantineProvider, Text } from "@mantine/core";
 import { useWindowEvent } from "@mantine/hooks";
-import { useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   type Block,
@@ -17,7 +17,6 @@ import {
 import { CalendarRegion } from "./calendar/CalendarRegion.tsx";
 import { isInputTarget } from "./calendar/gestures.ts";
 import { Calendar } from "./calendar/Calendar.tsx";
-import { Dashboard } from "./calendar/Dashboard.tsx";
 import { YearCalendar, type YearJump } from "./calendar/YearCalendar.tsx";
 import { movePeriod, period, type View } from "./calendar/period.ts";
 import { Filters } from "./calendar/Filters.tsx";
@@ -29,6 +28,8 @@ import { useResource } from "./calendar/use-resource.ts";
 import { AppHeader } from "./layout/AppHeader.tsx";
 import { CalendarToolbar } from "./calendar/CalendarToolbar.tsx";
 import "./style.css";
+
+const Dashboard = lazy(() => import("./calendar/Dashboard.tsx"));
 
 function App() {
   const [lastCalendarView, setLastCalendarView] = useState<View>("week");
@@ -130,11 +131,19 @@ function App() {
       />
       <AppShell.Main flex={1} mih={0} display="flex" style={{ flexDirection: "column" }}>
         {view === "top" ? (
-          <Dashboard
-            summary={dashboard?.data}
-            failed={dashboard?.error}
-            openMonth={(day) => drillDown("month", day)}
-          />
+          <Suspense
+            fallback={
+              <Text p="md" role="status">
+                読み込み中
+              </Text>
+            }
+          >
+            <Dashboard
+              summary={dashboard?.data}
+              failed={dashboard?.error}
+              openMonth={(day) => drillDown("month", day)}
+            />
+          </Suspense>
         ) : (
           <>
             <CalendarToolbar
