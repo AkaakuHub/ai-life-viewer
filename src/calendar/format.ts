@@ -39,10 +39,23 @@ export const clock = new Intl.DateTimeFormat("ja-JP", {
 });
 export const hours = (ms: number) => `${(ms / HOUR).toFixed(1)}h`;
 
-const colors = ["#b793f6", "#65c9f1", "#6bdbc1", "#f3b573", "#8aa8ff", "#f28da6", "#b4d77e"];
+const colors = [
+  "#478659",
+  "#a95370",
+  "#87913e",
+  "#a7703b",
+  "#398e86",
+  "#8168b5",
+  "#66798f",
+  "#b3644d",
+  "#4b78a7",
+  "#9466a0",
+];
 export function blockColor(agent: string, project: string) {
-  let hash = 0;
-  for (const letter of agent + project) hash = (Math.imul(hash, 31) + letter.charCodeAt(0)) >>> 0;
+  let hash = 2166136261;
+  for (const character of project || agent) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
+  }
   return colors[hash % colors.length];
 }
 

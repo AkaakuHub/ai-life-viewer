@@ -20,6 +20,7 @@ import {
 import { clock, date, hours, monthNumber, usd, weekday } from "./format.ts";
 import { Markdown } from "./Markdown.tsx";
 import { supplementaryPreview } from "./markdown.ts";
+import { AccountUsageFields } from "./Usage.tsx";
 import { monthTotals } from "./period.ts";
 
 const closeButton = { "aria-label": "閉じる", size: 42 };
@@ -128,6 +129,7 @@ function SummaryContent({ summary, yearStart }: { summary: Summary; yearStart?: 
         </Group>
       </Paper>
       <WorkMetrics metrics={summary} title="対象セッションの合計" />
+      <AccountUsageFields usage={summary.accountUsage} />
       <Stack component="section" gap="xs">
         <Title order={3} size="sm">
           {monthly ? "月別" : "日別"}
@@ -221,6 +223,14 @@ export function BlockPanel({ block, close }: { block?: Block; close: () => void 
               ["終了", `${date.format(block.end)} ${clock.format(block.end)}`],
               ["稼働時間", `${Math.round((block.end - block.start) / MINUTE)}分`],
               ["モデル", block.model],
+              [
+                "記録元",
+                block.provenance === "metadata"
+                  ? "Codexスレッドメタデータ"
+                  : block.provenance === "turns"
+                    ? "Codexターン履歴"
+                    : undefined,
+              ],
               ["概算API料金（セッション）", usd(block.estimatedCostUsd)],
               ["推論レベル", block.reasoningEffort],
               ["Gitブランチ", block.branch],

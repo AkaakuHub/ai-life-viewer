@@ -7,6 +7,26 @@ export function dayStart(time: number) {
   return Math.floor((time + JST) / DAY) * DAY - JST;
 }
 
+export function dayKey(time: number) {
+  return new Date(time + JST).toISOString().slice(0, 10);
+}
+
+export type UsageDay = {
+  startDate: string;
+  tokens: number;
+};
+
+type AccountUsage = {
+  days: UsageDay[];
+  summary?: {
+    currentStreakDays: number;
+    lifetimeTokens: number;
+    longestRunningTurnSec: number;
+    longestStreakDays: number;
+    peakDailyTokens: number;
+  };
+};
+
 export type Metrics = {
   inputTokens?: number;
   cachedInputTokens?: number;
@@ -22,6 +42,7 @@ export type Block = Metrics & {
   gitSha?: string;
   gitOriginUrl?: string;
   preview?: string;
+  provenance?: "rollout" | "turns" | "metadata" | "t3";
   id: number;
   agent: string;
   title: string;
@@ -41,9 +62,10 @@ type Cost = {
 };
 
 export type GroupTotal = Cost & { name: string; ms: number };
-export type BlockResult = { blocks: Block[]; days: DayTotal[] };
+export type BlockResult = { blocks: Block[]; days: DayTotal[]; accountUsage: AccountUsage };
 export type Summary = Metrics &
   Cost & {
+    accountUsage: AccountUsage;
     totalMs: number;
     agents: GroupTotal[];
     projects: GroupTotal[];

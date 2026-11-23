@@ -23,6 +23,7 @@ import {
   type BlockResult,
   type FilterOptions,
   type Summary,
+  type UsageDay,
 } from "../shared/timeline.ts";
 import { CalendarRegion } from "./calendar/CalendarRegion.tsx";
 import { isInputTarget } from "./calendar/gestures.ts";
@@ -31,6 +32,7 @@ import { Calendar } from "./calendar/Calendar.tsx";
 import { movePeriod, period, views, type View } from "./calendar/period.ts";
 import { Filters, type Selection } from "./calendar/Filters.tsx";
 import { BlockPanel, SummaryPanel } from "./calendar/Panels.tsx";
+import { UsageDayPanel } from "./calendar/Usage.tsx";
 import { useResource } from "./calendar/use-resource.ts";
 import "./style.css";
 
@@ -39,7 +41,7 @@ function App() {
   const [view, setView] = useState<View>(() =>
     window.matchMedia("(max-width: 600px)").matches ? "day" : "week",
   );
-  const [panel, setPanel] = useState<"filters" | "summary" | Block>();
+  const [panel, setPanel] = useState<"filters" | "summary" | Block | UsageDay>();
   const [selection, setSelection] = useState<Selection>({ agents: [], projects: [], q: "" });
   const { start, end } = period(view, anchor);
   const query = new URLSearchParams({ start: String(start), end: String(end), q: selection.q });
@@ -167,7 +169,13 @@ function App() {
           start={start}
           blocks={blocks?.data?.blocks ?? []}
           totals={(view === "year" ? summary?.data?.days : blocks?.data?.days) ?? []}
+          usageDays={
+            (view === "year"
+              ? summary?.data?.accountUsage.days
+              : blocks?.data?.accountUsage.days) ?? []
+          }
           onSelect={setPanel}
+          onUsageSelect={setPanel}
           drillDown={drillDown}
         />
       </CalendarRegion>
@@ -186,7 +194,14 @@ function App() {
         failed={summary?.error}
         yearStart={view === "year" ? start : undefined}
       />
-      <BlockPanel block={typeof panel === "object" ? panel : undefined} close={close} />
+      <BlockPanel
+        block={typeof panel === "object" && "id" in panel ? panel : undefined}
+        close={close}
+      />
+      <UsageDayPanel
+        usage={typeof panel === "object" && "startDate" in panel ? panel : undefined}
+        close={close}
+      />
     </Box>
   );
 }

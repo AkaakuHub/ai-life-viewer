@@ -35,3 +35,14 @@
   inset-inline-end: 0;
   background: linear-gradient(to left, #8baaff90, transparent);
 }
+
+.calendar-display .day-summary-link {
+  width: 100%;
+  min-height: 48px;
+  max-width: 100%;
+}
+
+.calendar-display .timeline-block {
+  border-inline-start: 2px solid color-mix(in srgb, var(--fc-event-color) 70%, #111521);
+  overflow: hidden;
+}

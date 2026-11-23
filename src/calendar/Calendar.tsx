@@ -8,9 +8,10 @@ import monarch from "@fullcalendar/react/themes/monarch";
 import timeGrid from "@fullcalendar/react/timegrid";
 import { Box, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { MINUTE, type Block, type DayTotal } from "../../shared/timeline.ts";
+import { MINUTE, dayKey, type Block, type DayTotal, type UsageDay } from "../../shared/timeline.ts";
 import { blockColor, clock, date, dayNumber, hours, usd, weekday } from "./format.ts";
 import { plainText } from "./markdown.ts";
+import { UsageBadge } from "./Usage.tsx";
 import type { View } from "./period.ts";
 
 const plugins = [monarch, timeGrid, dayGrid, multiMonth, interaction];
@@ -25,12 +26,12 @@ function EventLabel({
   block,
   title,
   hover,
-  timeText,
+  timeline,
 }: {
   block: Block;
   title: string;
   hover: boolean;
-  timeText: string;
+  timeline: boolean;
 }) {
   return (
     <Tooltip
@@ -56,9 +57,24 @@ function EventLabel({
         </Stack>
       }
     >
-      <Text component="span" size="xs" truncate display="block">
-        {block.agent} {timeText} {title}
-      </Text>
+      {timeline ? (
+        <Box
+          component="span"
+          display="block"
+          style={{ whiteSpace: "normal", overflowWrap: "anywhere", overflow: "hidden" }}
+        >
+          <Text component="span" display="block" size="xs" fw={650} lh={1.2}>
+            {block.agent} {clock.format(block.start)}
+          </Text>
+          <Text component="span" display="block" size="xs" lh={1.25}>
+            {title}
+          </Text>
+        </Box>
+      ) : (
+        <Text component="span" size="xs" truncate display="block">
+          {title}
+        </Text>
+      )}
     </Tooltip>
   );
 }
@@ -68,19 +84,24 @@ export function Calendar({
   start,
   blocks,
   totals,
+  usageDays,
   onSelect,
+  onUsageSelect,
   drillDown,
 }: {
   view: View;
   start: number;
   blocks: Block[];
   totals: DayTotal[];
+  usageDays: UsageDay[];
   onSelect: (block: Block) => void;
+  onUsageSelect: (usage: UsageDay) => void;
   drillDown: (target: View, day: number) => void;
 }) {
   const ref = useRef<CalendarRef>(null);
   const hover = useMediaQuery("(hover: hover) and (pointer: fine)");
   const timeline = view === "week" || view === "day";
+  const yearly = view === "year";
   // The library owns the current date inside a view. The app owns navigation between views.
   useEffect(() => {
     ref.current?.getApi().gotoDate(new Date(start));
@@ -99,9 +120,8 @@ export function Calendar({
                 title: plainText(block.title) || block.project,
                 start: new Date(block.start),
                 end: new Date(block.end),
-                backgroundColor: `color-mix(in srgb, ${color} 24%, #131923)`,
-                borderColor: color,
-                textColor: "#f3f6ff",
+                color: `${color}80`,
+                contrastColor: "#f3f6ff",
               },
             },
           ] as const;
@@ -112,10 +132,19 @@ export function Calendar({
   const events = useMemo(() => Array.from(entries.values(), ({ event }) => event), [entries]);
   const activity = useMemo(() => new Map(totals.map(({ day, ms }) => [day, ms])), [totals]);
   const max = Math.max(1, ...activity.values());
+  const dailyUsage = useMemo(
+    () => new Map(usageDays.map((day) => [day.startDate, day])),
+    [usageDays],
+  );
   const clickDate = (day: Date) => drillDown(view === "year" ? "month" : "day", day.getTime());
   return (
     <Box component="section" aria-label="稼働時間カレンダー" h="100%" style={{ overflow: "auto" }}>
-      <Box h="100%" miw={view === "week" ? 840 : undefined} className="calendar-display">
+      <Box
+        h="100%"
+        mih={view === "month" ? 560 : undefined}
+        miw={view === "week" ? 840 : undefined}
+        className="calendar-display"
+      >
         <FullCalendar
           ref={ref}
           plugins={plugins}
@@ -137,10 +166,15 @@ export function Calendar({
           eventMinHeight={12}
           eventInteractive
           eventOrder={timeline ? "start,-duration,title" : "-duration,start,title"}
-          dayMaxEvents={view === "month" ? 1 : undefined}
-          showNonCurrentDates={false}
-          fixedWeekCount={false}
-          singleMonthMinWidth={290}
+          dayMaxEvents={timeline ? undefined : 1}
+          showNonCurrentDates={yearly}
+          fixedWeekCount={!timeline}
+          expandRows={!timeline}
+          moreLinkContent={({ num }) => `+${num}件`}
+          dayCellTopInnerClass={!timeline ? "day-summary-link" : undefined}
+          eventClass={timeline ? "timeline-block" : undefined}
+          singleMonthMinWidth={310}
+          aspectRatio={yearly ? 1.1 : undefined}
           navLinks={!timeline}
           navLinkDayClick={clickDate}
           datesSet={({ view: current }) => {
@@ -152,37 +186,46 @@ export function Calendar({
           dayHeaderRowClass={view === "week" ? "week-swipe-header" : undefined}
           dayHeaderContent={
             timeline
-              ? ({ date: day }) => (
-                  <Group gap={5} justify="center" wrap="nowrap">
-                    <Text
-                      size="sm"
-                      c={
-                        weekday.format(day) === "日"
-                          ? "red.3"
-                          : weekday.format(day) === "土"
-                            ? "blue.3"
-                            : undefined
-                      }
-                    >
-                      {weekday.format(day)} {date.format(day)}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {hours(activity.get(day.getTime()) ?? 0)}
-                    </Text>
-                  </Group>
-                )
+              ? ({ date: day }) => {
+                  const usage = view === "day" ? dailyUsage.get(dayKey(day.getTime())) : undefined;
+                  return (
+                    <Group gap={5} justify="center" wrap="wrap">
+                      <Text
+                        size="sm"
+                        c={
+                          weekday.format(day) === "日"
+                            ? "red.3"
+                            : weekday.format(day) === "土"
+                              ? "blue.3"
+                              : undefined
+                        }
+                      >
+                        {weekday.format(day)} {date.format(day)}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {hours(activity.get(day.getTime()) ?? 0)}
+                      </Text>
+                      {usage && <UsageBadge usage={usage} onClick={() => onUsageSelect(usage)} />}
+                    </Group>
+                  );
+                }
               : undefined
           }
           dayCellTopContent={
             !timeline
-              ? ({ date: day, inPopover }) => {
+              ? ({ date: day, inPopover, isOther }) => {
                   if (inPopover) return true;
-                  const ms = activity.get(day.getTime()) ?? 0;
+                  const ms = isOther ? 0 : (activity.get(day.getTime()) ?? 0);
+                  const usage = isOther ? undefined : dailyUsage.get(dayKey(day.getTime()));
                   return (
                     <Box
                       component="span"
                       display="block"
+                      w="100%"
+                      mih={42}
+                      ta="start"
                       px={3}
+                      className="day-summary"
                       style={{
                         borderRadius: 4,
                         background: ms
@@ -190,14 +233,17 @@ export function Calendar({
                           : undefined,
                       }}
                     >
-                      <Text component="span" display="block" size="xs" fw={700}>
+                      <Text component="span" display="block" size="xs" lh={1.15} fw={700}>
                         {dayNumber.format(day)}
                       </Text>
-                      {(view === "month" || ms > 0) && (
-                        <Text component="span" display="block" size="xs">
-                          {hours(ms)}
-                        </Text>
-                      )}
+                      <Text component="span" display="block" size="xs" lh={1.15} truncate>
+                        {isOther || ms === 0
+                          ? "–"
+                          : ms < 3 * MINUTE
+                            ? `${Math.max(1, Math.round(ms / MINUTE))}分`
+                            : hours(ms)}
+                      </Text>
+                      {usage && <UsageBadge usage={usage} compact />}
                     </Box>
                   );
                 }
@@ -208,14 +254,14 @@ export function Calendar({
             const entry = entries.get(event.id);
             if (entry) onSelect(entry.block);
           }}
-          eventContent={({ event, timeText }) => {
+          eventContent={({ event }) => {
             const entry = entries.get(event.id);
             return entry ? (
               <EventLabel
                 block={entry.block}
                 title={event.title}
                 hover={hover}
-                timeText={timeline ? timeText : ""}
+                timeline={timeline}
               />
             ) : null;
           }}
