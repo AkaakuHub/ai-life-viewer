@@ -70,8 +70,8 @@ func (s *Store) saveAccountUsage(snapshot accountusage.Snapshot, now time.Time) 
 		if _, err := time.Parse(time.DateOnly, day.StartDate); err != nil || day.Tokens < 0 {
 			continue
 		}
-		_, err := tx.Exec(`INSERT INTO daily_usage(day,tokens,updated_at) VALUES(?,?,?)
-			ON CONFLICT(day) DO UPDATE SET tokens=excluded.tokens,updated_at=excluded.updated_at`,
+		_, err := tx.Exec(`INSERT INTO daily_usage(agent,day,tokens,updated_at) VALUES('cx',?,?,?)
+			ON CONFLICT(agent,day) DO UPDATE SET tokens=excluded.tokens,updated_at=excluded.updated_at`,
 			day.StartDate, day.Tokens, now.UnixMilli())
 		if err != nil {
 			return err
@@ -103,7 +103,7 @@ func (s *Store) AccountUsage(start, end int64) (AccountUsage, error) {
 	if err == nil {
 		out.Summary = &summary
 	}
-	rows, err := s.db.Query("SELECT day,tokens FROM daily_usage WHERE day BETWEEN ? AND ? AND tokens>0 ORDER BY day",
+	rows, err := s.db.Query("SELECT day,tokens FROM daily_usage WHERE agent='cx' AND day BETWEEN ? AND ? AND tokens>0 ORDER BY day",
 		time.UnixMilli(start).In(timeline.JST).Format(time.DateOnly), time.UnixMilli(end-1).In(timeline.JST).Format(time.DateOnly))
 	if err != nil {
 		return out, err

@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "service": "Agent Timeline",
+  "description": "Send missing history from another machine (for example a Mac) into the existing database. Writes are atomic idempotent upserts by (agent, session) and (agent, day).",
+  "authentication": {
+    "writes": "Authorization: Bearer <token>",
+    "token": "Server environment variable AGENT_TIMELINE_INGEST_TOKEN; otherwise read the generated data/ingest.token on the server.",
+    "reads": "No token required"
+  },
+  "endpoints": {
+    "POST /api/v1/ingest": {
+      "description": "Send an application/json object of at most 1 MiB. A records array with one element submits one record; dailyUsage alone is also accepted. sourceKey is an alias for session. Nonblank submitted metadata updates existing values and omitted values are preserved. Submitted blocks upsert by (agent, session, start); missing blocks are retained and overlapping or adjacent intervals from either machine are merged for reads. Token and count fields are session totals, never added to existing values. dailyUsage.tokens replaces the existing total for that agent and JST day.",
+      "request": { "$ref": "#/$defs/Ingest" },
+      "responses": {
+        "200": { "$ref": "#/$defs/IngestResult" },
+        "400": { "$ref": "#/$defs/IngestError" },
+        "401": { "$ref": "#/$defs/IngestError" },
+        "500": { "$ref": "#/$defs/IngestError" }
+      },
+      "examples": {
+        "minimum": {
+          "records": [
+            {
+              "agent": "cx",
+              "session": "session-on-mac",
+              "title": "Implement tests",
+              "blocks": [{ "start": 1795400400000, "end": 1795400700000 }]
+            }
+          ]
+        },
+        "complete": {
+          "records": [
+            {
+              "sourceKey": "session-on-mac",
+              "agent": "cx",
+              "title": "Implement tests",
+              "project": "agent-timeline",
+              "cwd": "/Users/me/code/agent-timeline",
+              "model": "gpt-6.2-sol",
+              "branch": "main",
+              "reasoningEffort": "medium",
+              "tokens": {
+                "total": 300,
+                "input": 200,
+                "cachedInput": 100,
+                "output": 100,
+                "reasoning": 40
+              },
+              "turnCount": 2,
+              "toolCallCount": 3,
+              "blocks": [
+                { "start": 1795400400000, "end": 1795400700000 },
+                { "start": 1795401000000, "end": 1795401300000 }
+              ]
+            }
+          ],
+          "dailyUsage": [{ "agent": "cx", "day": "2026-11-23", "tokens": 300 }]
+        }
+      }
+    },
+    "GET /api/blocks": {
+      "query": { "allOf": [{ "$ref": "#/$defs/RangeQuery" }], "required": ["start", "end"] },
+      "description": "Returns blocks overlapping [start, end), clipped JST day totals, and absolute daily usage totals. Blocks expose their full timestamps.",
+      "responses": {
+        "200": { "$ref": "#/$defs/BlockResult" },
+        "400": { "type": "string" },
+        "500": { "type": "string" }
+      }
+    },
+    "GET /api/summary": {
+      "query": { "$ref": "#/$defs/RangeQuery" },
+      "description": "Supply both timestamps for a bounded summary or omit both for the full history and its monthly and yearly trends.",
+      "responses": {
+        "200": { "$ref": "#/$defs/Summary" },
+        "400": { "type": "string" },
+        "500": { "type": "string" }
+      }
+    },
+    "GET /api/filters": {
+      "responses": { "200": { "$ref": "#/$defs/Filters" }, "500": { "type": "string" } }
+    },
+    "GET /api/status": {
+      "responses": { "200": { "$ref": "#/$defs/Status" }, "500": { "type": "string" } }
+    },
+    "GET /api/schema": { "responses": { "200": { "$ref": "#/$defs/ServiceSchema" } } }
+  },
+  "$defs": {
+    "Timestamp": {
+      "type": "integer",
+      "description": "Milliseconds since the Unix epoch; inclusive start and exclusive end"
+    },
+    "Counter": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+    "Agent": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" },
+    "DayDate": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$",
+      "description": "JST calendar date (YYYY-MM-DD)"
+    },
+    "SessionKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "description": "1–160 UTF-8 bytes without surrounding whitespace or control characters"
+    },
+    "MetadataText": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "At most 2048 UTF-8 bytes"
+    },
+    "BlockInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/Timestamp",
+          "minimum": 946684800000,
+          "exclusiveMaximum": 4102444800000
+        },
+        "end": {
+          "$ref": "#/$defs/Timestamp",
+          "exclusiveMinimum": 946684800000,
+          "maximum": 4102444800000
+        }
+      },
+      "description": "end must follow start, with a maximum span of 366 days. Use unique starts per record."
+    },
+    "Tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total": { "$ref": "#/$defs/Counter" },
+        "input": { "$ref": "#/$defs/Counter" },
+        "cachedInput": { "$ref": "#/$defs/Counter" },
+        "output": { "$ref": "#/$defs/Counter" },
+        "reasoning": { "$ref": "#/$defs/Counter" }
+      },
+      "description": "Cached input is part of input; reasoning is part of output."
+    },
+    "RecordInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "title", "blocks"],
+      "oneOf": [{ "required": ["session"] }, { "required": ["sourceKey"] }],
+      "properties": {
+        "session": { "$ref": "#/$defs/SessionKey" },
+        "sourceKey": { "$ref": "#/$defs/SessionKey" },
+        "agent": { "$ref": "#/$defs/Agent" },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "description": "Nonblank, at most 8192 UTF-8 bytes"
+        },
+        "project": { "$ref": "#/$defs/MetadataText" },
+        "cwd": { "$ref": "#/$defs/MetadataText" },
+        "model": { "$ref": "#/$defs/MetadataText" },
+        "branch": { "$ref": "#/$defs/MetadataText" },
+        "reasoningEffort": { "$ref": "#/$defs/MetadataText" },
+        "tokens": { "$ref": "#/$defs/Tokens" },
+        "turnCount": { "$ref": "#/$defs/Counter" },
+        "toolCallCount": { "$ref": "#/$defs/Counter" },
+        "blocks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/BlockInput" }
+        }
+      }
+    },
+    "DailyUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "day", "tokens"],
+      "properties": {
+        "agent": { "$ref": "#/$defs/Agent" },
+        "day": { "$ref": "#/$defs/DayDate" },
+        "tokens": { "$ref": "#/$defs/Counter" }
+      }
+    },
+    "Ingest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "records": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/RecordInput" } },
+        "dailyUsage": {
+          "type": "array",
+          "maxItems": 500,
+          "items": { "$ref": "#/$defs/DailyUsage" }
+        }
+      },
+      "anyOf": [
+        { "required": ["records"], "properties": { "records": { "minItems": 1 } } },
+        { "required": ["dailyUsage"], "properties": { "dailyUsage": { "minItems": 1 } } }
+      ],
+      "description": "Use each (agent, session) and (agent, day) at most once per batch."
+    },
+    "IngestResult": {
+      "type": "object",
+      "required": ["records", "dailyUsage"],
+      "properties": {
+        "records": { "$ref": "#/$defs/Counter" },
+        "dailyUsage": { "$ref": "#/$defs/Counter" }
+      },
+      "description": "Counts of submitted entries, including updates."
+    },
+    "IngestError": {
+      "type": "object",
+      "required": ["error", "field", "message"],
+      "properties": {
+        "error": { "enum": ["invalid_request", "unauthorized", "write_failed"] },
+        "field": {
+          "type": "string",
+          "description": "Input field path, Authorization, body, or empty for a server error"
+        },
+        "message": { "type": "string" }
+      }
+    },
+    "RangeQuery": {
+      "type": "object",
+      "dependentRequired": { "start": ["end"], "end": ["start"] },
+      "properties": {
+        "start": { "$ref": "#/$defs/Timestamp" },
+        "end": { "$ref": "#/$defs/Timestamp" },
+        "agents": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Repeat agents= or send one comma-separated list"
+        },
+        "projects": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Repeat projects= for each exact project name"
+        },
+        "q": { "type": "string", "description": "Substring search in title, project, and cwd" }
+      },
+      "description": "Ranges have end > start and span at most 366 days. Session filters do not affect daily usage totals."
+    },
+    "Metrics": {
+      "type": "object",
+      "properties": {
+        "inputTokens": { "$ref": "#/$defs/Counter" },
+        "cachedInputTokens": { "$ref": "#/$defs/Counter" },
+        "outputTokens": { "$ref": "#/$defs/Counter" },
+        "reasoningTokens": { "$ref": "#/$defs/Counter" },
+        "turnCount": { "$ref": "#/$defs/Counter" },
+        "toolCallCount": { "$ref": "#/$defs/Counter" }
+      }
+    },
+    "Cost": {
+      "type": "object",
+      "properties": {
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "unpricedSessions": { "$ref": "#/$defs/Counter" }
+      }
+    },
+    "Block": {
+      "allOf": [{ "$ref": "#/$defs/Metrics" }],
+      "type": "object",
+      "required": [
+        "id",
+        "agent",
+        "title",
+        "project",
+        "cwd",
+        "model",
+        "branch",
+        "tokens",
+        "start",
+        "end"
+      ],
+      "properties": {
+        "id": { "type": "integer" },
+        "agent": { "type": "string" },
+        "title": { "type": "string" },
+        "session": { "type": "string" },
+        "project": { "type": "string" },
+        "cwd": { "type": "string" },
+        "model": { "type": "string" },
+        "branch": { "type": "string" },
+        "tokens": { "type": ["integer", "null"] },
+        "start": { "$ref": "#/$defs/Timestamp" },
+        "end": { "$ref": "#/$defs/Timestamp" },
+        "reasoningEffort": { "type": "string" },
+        "gitSha": { "type": "string" },
+        "gitOriginUrl": { "type": "string" },
+        "preview": { "type": "string" },
+        "provenance": { "enum": ["rollout", "turns", "metadata", "t3", "session"] },
+        "estimatedCostUsd": {
+          "type": "number",
+          "description": "Estimate for the session containing this block, when calculable"
+        }
+      }
+    },
+    "DayTotal": {
+      "type": "object",
+      "required": ["day", "ms"],
+      "properties": {
+        "day": { "$ref": "#/$defs/Timestamp", "description": "JST midnight" },
+        "ms": { "$ref": "#/$defs/Counter" }
+      }
+    },
+    "AccountUsage": {
+      "type": "object",
+      "required": ["days"],
+      "description": "Codex account usage: the positive cx rows of dailyUsage, and optional account-wide totals. These rows are the same data, not extra tokens.",
+      "properties": {
+        "days": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["startDate", "tokens"],
+            "properties": {
+              "startDate": { "$ref": "#/$defs/DayDate" },
+              "tokens": { "$ref": "#/$defs/Counter" }
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "required": [
+            "currentStreakDays",
+            "lifetimeTokens",
+            "longestRunningTurnSec",
+            "longestStreakDays",
+            "peakDailyTokens"
+          ],
+          "properties": {
+            "currentStreakDays": { "$ref": "#/$defs/Counter" },
+            "lifetimeTokens": { "$ref": "#/$defs/Counter" },
+            "longestRunningTurnSec": { "$ref": "#/$defs/Counter" },
+            "longestStreakDays": { "$ref": "#/$defs/Counter" },
+            "peakDailyTokens": { "$ref": "#/$defs/Counter" }
+          }
+        }
+      }
+    },
+    "ReadUsage": {
+      "type": "object",
+      "required": ["days", "accountUsage", "dailyUsage"],
+      "properties": {
+        "days": { "type": "array", "items": { "$ref": "#/$defs/DayTotal" } },
+        "accountUsage": { "$ref": "#/$defs/AccountUsage" },
+        "dailyUsage": { "type": "array", "items": { "$ref": "#/$defs/DailyUsage" } }
+      }
+    },
+    "BlockResult": {
+      "allOf": [{ "$ref": "#/$defs/ReadUsage" }],
+      "type": "object",
+      "required": ["blocks"],
+      "properties": { "blocks": { "type": "array", "items": { "$ref": "#/$defs/Block" } } }
+    },
+    "Group": {
+      "allOf": [{ "$ref": "#/$defs/Cost" }],
+      "type": "object",
+      "required": ["name", "ms"],
+      "properties": { "name": { "type": "string" }, "ms": { "$ref": "#/$defs/Counter" } }
+    },
+    "Trend": {
+      "allOf": [{ "$ref": "#/$defs/Cost" }],
+      "type": "object",
+      "required": ["start", "ms"],
+      "properties": {
+        "start": { "$ref": "#/$defs/Timestamp" },
+        "ms": { "$ref": "#/$defs/Counter" },
+        "tokens": { "$ref": "#/$defs/Counter" },
+        "accountTokens": { "$ref": "#/$defs/Counter" }
+      }
+    },
+    "Summary": {
+      "allOf": [
+        { "$ref": "#/$defs/ReadUsage" },
+        { "$ref": "#/$defs/Metrics" },
+        { "$ref": "#/$defs/Cost" }
+      ],
+      "type": "object",
+      "required": ["totalMs", "sessionCount", "agents", "projects"],
+      "properties": {
+        "totalMs": { "$ref": "#/$defs/Counter" },
+        "sessionCount": { "$ref": "#/$defs/Counter" },
+        "agents": { "type": "array", "items": { "$ref": "#/$defs/Group" } },
+        "projects": { "type": "array", "items": { "$ref": "#/$defs/Group" } },
+        "history": {
+          "type": "object",
+          "required": ["start", "months", "years"],
+          "properties": {
+            "start": { "$ref": "#/$defs/Timestamp" },
+            "months": { "type": "array", "items": { "$ref": "#/$defs/Trend" } },
+            "years": { "type": "array", "items": { "$ref": "#/$defs/Trend" } }
+          }
+        }
+      }
+    },
+    "Filters": {
+      "type": "object",
+      "required": ["agents", "projects"],
+      "properties": {
+        "agents": { "type": "array", "items": { "type": "string" } },
+        "projects": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Status": {
+      "type": "object",
+      "required": ["indexedFiles", "blockCount", "lastSync"],
+      "properties": {
+        "indexedFiles": { "$ref": "#/$defs/Counter" },
+        "blockCount": { "$ref": "#/$defs/Counter" },
+        "lastSync": { "$ref": "#/$defs/Timestamp" }
+      }
+    },
+    "ServiceSchema": {
+      "type": "object",
+      "required": ["$schema", "service", "description", "authentication", "endpoints", "$defs"],
+      "properties": {
+        "$schema": { "type": "string" },
+        "service": { "type": "string" },
+        "description": { "type": "string" },
+        "authentication": { "type": "object" },
+        "endpoints": { "type": "object" },
+        "$defs": { "type": "object" }
+      }
+    }
+  }
+}

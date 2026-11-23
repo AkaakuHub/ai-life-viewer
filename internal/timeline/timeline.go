@@ -13,7 +13,7 @@ type Block struct {
 	Metrics
 	EstimatedCostUSD *float64 `json:"estimatedCostUsd,omitempty"`
 	Source           string   `json:"-"`
-	Session          string   `json:"-"`
+	Session          string   `json:"session,omitempty"`
 	ReasoningEffort  string   `json:"reasoningEffort,omitempty"`
 	GitSHA           string   `json:"gitSha,omitempty"`
 	GitOriginURL     string   `json:"gitOriginUrl,omitempty"`

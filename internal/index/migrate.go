@@ -18,8 +18,10 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	switch version {
-	case 3:
+	case 4:
 		return nil
+	case 3:
+		return migrateIngest(tx)
 	case 2:
 		return migrateUsage(tx)
 	case 1:
@@ -74,7 +76,35 @@ func migrateHistory(tx *sql.Tx) error {
 			     WHEN s.key='codex:metadata:' || s.session THEN 1
 			     ELSE 0 END AS precedence
 		FROM sources s LEFT JOIN files own ON own.path=s.key;
-		CREATE VIEW timeline AS
+		PRAGMA user_version=2;
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(fmt.Sprintf(localTimeline, "timeline"))
+	return err
+}
+
+func migrateUsage(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+		CREATE TABLE daily_usage (
+			day TEXT PRIMARY KEY, tokens INTEGER NOT NULL, updated_at INTEGER NOT NULL
+		) WITHOUT ROWID;
+		CREATE TABLE usage_summary (
+			id INTEGER PRIMARY KEY CHECK(id=1), current_streak_days INTEGER NOT NULL,
+			lifetime_tokens INTEGER NOT NULL, longest_running_turn_sec INTEGER NOT NULL,
+			longest_streak_days INTEGER NOT NULL, peak_daily_tokens INTEGER NOT NULL, updated_at INTEGER NOT NULL
+		);
+		PRAGMA user_version=3;
+	`)
+	if err != nil {
+		return err
+	}
+	return migrateIngest(tx)
+}
+
+const localTimeline = `
+		CREATE VIEW %s AS
 		SELECT b.id, s.agent, COALESCE(NULLIF(c.title,''),NULLIF(s.title,''),s.project) title,
 		       CASE WHEN c.cwd IS NOT NULL AND c.cwd <> '' THEN c.cwd ELSE s.cwd END cwd,
 		       CASE WHEN c.cwd IS NOT NULL AND c.cwd <> '' THEN c.project ELSE s.project END project, COALESCE(NULLIF(c.model,''),s.model) model,
@@ -98,25 +128,4 @@ func migrateHistory(tx *sql.Tx) error {
 			           (f.byte_offset>s.byte_offset OR (f.byte_offset=s.byte_offset AND f.key>s.key))))
 			      AND EXISTS (SELECT 1 FROM blocks WHERE source=f.key)
 		);
-		PRAGMA user_version=2;
-	`)
-	return err
-}
-
-func migrateUsage(tx *sql.Tx) error {
-	_, err := tx.Exec(`
-		CREATE TABLE daily_usage (
-			day TEXT PRIMARY KEY, tokens INTEGER NOT NULL, updated_at INTEGER NOT NULL
-		) WITHOUT ROWID;
-		CREATE TABLE usage_summary (
-			id INTEGER PRIMARY KEY CHECK(id=1), current_streak_days INTEGER NOT NULL,
-			lifetime_tokens INTEGER NOT NULL, longest_running_turn_sec INTEGER NOT NULL,
-			longest_streak_days INTEGER NOT NULL, peak_daily_tokens INTEGER NOT NULL, updated_at INTEGER NOT NULL
-		);
-		PRAGMA user_version=3;
-	`)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
-}
+`

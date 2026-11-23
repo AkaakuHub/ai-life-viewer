@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"agent-timeline/internal/index"
+	"agent-timeline/internal/ingest"
 	"agent-timeline/internal/pricing"
 	"agent-timeline/internal/timeline"
 )
@@ -29,18 +30,23 @@ func main() {
 		log.Fatal(err)
 	}
 	defer store.Close()
+	auth, err := ingest.LoadAuth("data/ingest.token")
+	if err != nil {
+		log.Fatal(err)
+	}
 	ctx := context.Background()
 	go store.Watch(ctx, home)
 	go store.WatchAccountUsage(ctx, "data")
 	rates := pricing.Load(filepath.Join(home, ".t3/userdata/usage-model-rates.json"))
 	go rates.Watch(ctx)
-	server := http.Server{Addr: "127.0.0.1:4180", Handler: routes(store, rates, os.DirFS("dist")), ReadHeaderTimeout: 5 * time.Second}
+	server := http.Server{Addr: "127.0.0.1:4180", Handler: routes(store, rates, auth, os.DirFS("dist")), ReadHeaderTimeout: 5 * time.Second}
 	log.Printf("listening on http://%s", server.Addr)
 	log.Fatal(server.ListenAndServe())
 }
 
-func routes(store *index.Store, rates *pricing.Source, dist fs.FS) http.Handler {
+func routes(store *index.Store, rates *pricing.Source, auth ingest.Auth, dist fs.FS) http.Handler {
 	mux := http.NewServeMux()
+	registerIngest(mux, store, auth)
 	rangeRoute := func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
 		allTime := r.URL.Path == "/api/summary" && !query.Has("start") && !query.Has("end")
@@ -79,6 +85,11 @@ func routes(store *index.Store, rates *pricing.Source, dist fs.FS) http.Handler 
 			respond(w, struct{}{}, err)
 			return
 		}
+		daily, err := store.DailyUsage(start, end)
+		if err != nil {
+			respond(w, struct{}{}, err)
+			return
+		}
 		if r.URL.Path == "/api/summary" {
 			var history *timeline.History
 			if allTime {
@@ -91,16 +102,18 @@ func routes(store *index.Store, rates *pricing.Source, dist fs.FS) http.Handler 
 			}
 			respond(w, struct {
 				timeline.Summary
-				AccountUsage index.AccountUsage `json:"accountUsage"`
-				History      *timeline.History  `json:"history,omitempty"`
-			}{summary, usage, history}, nil)
+				AccountUsage index.AccountUsage  `json:"accountUsage"`
+				History      *timeline.History   `json:"history,omitempty"`
+				DailyUsage   []ingest.DailyUsage `json:"dailyUsage"`
+			}{summary, usage, history, daily}, nil)
 			return
 		}
 		respond(w, struct {
 			Blocks       []timeline.Block    `json:"blocks"`
 			Days         []timeline.DayTotal `json:"days"`
 			AccountUsage index.AccountUsage  `json:"accountUsage"`
-		}{blocks, summary.Days, usage}, nil)
+			DailyUsage   []ingest.DailyUsage `json:"dailyUsage"`
+		}{blocks, summary.Days, usage, daily}, nil)
 	}
 	mux.HandleFunc("GET /api/blocks", rangeRoute)
 	mux.HandleFunc("GET /api/summary", rangeRoute)
