@@ -94,8 +94,8 @@ export function Calendar({
   blocks: Block[];
   totals: DayTotal[];
   usageDays: UsageDay[];
-  onSelect: (block: Block) => void;
-  onUsageSelect: (usage: UsageDay) => void;
+  onSelect?: (block: Block) => void;
+  onUsageSelect?: (usage: UsageDay) => void;
   drillDown: (target: View, day: number) => void;
 }) {
   const ref = useRef<CalendarRef>(null);
@@ -138,9 +138,14 @@ export function Calendar({
   );
   const clickDate = (day: Date) => drillDown(view === "year" ? "month" : "day", day.getTime());
   return (
-    <Box component="section" aria-label="稼働時間カレンダー" h="100%" style={{ overflow: "auto" }}>
+    <Box
+      component="section"
+      aria-label="稼働時間カレンダー"
+      h={yearly ? undefined : "100%"}
+      style={{ overflow: yearly ? undefined : "auto" }}
+    >
       <Box
-        h="100%"
+        h={yearly ? undefined : "100%"}
         mih={view === "month" ? 560 : undefined}
         miw={view === "week" ? 840 : undefined}
         className="calendar-display"
@@ -155,7 +160,7 @@ export function Calendar({
           colorScheme="dark"
           firstDay={0}
           headerToolbar={false}
-          height="100%"
+          height={yearly ? "auto" : "100%"}
           nowIndicator={timeline}
           allDaySlot={false}
           scrollTime="08:00:00"
@@ -171,7 +176,12 @@ export function Calendar({
           fixedWeekCount={!timeline}
           expandRows={!timeline}
           moreLinkContent={({ num }) => `+${num}件`}
-          dayCellTopInnerClass={!timeline ? "day-summary-link" : undefined}
+          dayCellTopInnerClass={
+            !timeline
+              ? ({ isToday }) =>
+                  isToday ? "day-summary-link day-summary-today" : "day-summary-link"
+              : undefined
+          }
           eventClass={timeline ? "timeline-block" : undefined}
           singleMonthMinWidth={310}
           aspectRatio={yearly ? 1.1 : undefined}
@@ -205,7 +215,7 @@ export function Calendar({
                       <Text size="xs" c="dimmed">
                         {hours(activity.get(day.getTime()) ?? 0)}
                       </Text>
-                      {usage && <UsageBadge usage={usage} onClick={() => onUsageSelect(usage)} />}
+                      {usage && <UsageBadge usage={usage} onClick={() => onUsageSelect?.(usage)} />}
                     </Group>
                   );
                 }
@@ -227,7 +237,7 @@ export function Calendar({
                       px={3}
                       className="day-summary"
                       style={{
-                        borderRadius: 4,
+                        borderRadius: 6,
                         background: ms
                           ? `color-mix(in srgb, var(--mantine-color-blue-7) ${15 + (ms / max) * 55}%, transparent)`
                           : undefined,
@@ -252,7 +262,7 @@ export function Calendar({
           events={events}
           eventClick={({ event }) => {
             const entry = entries.get(event.id);
-            if (entry) onSelect(entry.block);
+            if (entry) onSelect?.(entry.block);
           }}
           eventContent={({ event }) => {
             const entry = entries.get(event.id);

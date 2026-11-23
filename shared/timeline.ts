@@ -67,8 +67,19 @@ export type Summary = Metrics &
   Cost & {
     accountUsage: AccountUsage;
     totalMs: number;
+    sessionCount: number;
     agents: GroupTotal[];
     projects: GroupTotal[];
     days: DayTotal[];
   };
 export type FilterOptions = { agents: string[]; projects: string[] };
+
+type PeriodTotal = Cost & {
+  start: number;
+  ms: number;
+  tokens?: number;
+  accountTokens?: number;
+};
+export type DashboardSummary = Summary & {
+  history: { start: number; months: PeriodTotal[]; years: PeriodTotal[] };
+};

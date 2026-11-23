@@ -10,12 +10,12 @@ export const date = new Intl.DateTimeFormat("ja-JP", {
 });
 export const dayNumber = new Intl.DateTimeFormat("en", { timeZone, day: "numeric" });
 export const monthNumber = new Intl.DateTimeFormat("ja-JP", { timeZone, month: "long" });
-const monthName = new Intl.DateTimeFormat("ja-JP", {
+export const monthName = new Intl.DateTimeFormat("ja-JP", {
   timeZone,
   year: "numeric",
   month: "long",
 });
-const yearName = new Intl.DateTimeFormat("ja-JP", { timeZone, year: "numeric" });
+export const yearName = new Intl.DateTimeFormat("ja-JP", { timeZone, year: "numeric" });
 
 export function rangeLabel(view: View, start: number, end: number) {
   switch (view) {

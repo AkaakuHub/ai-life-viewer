@@ -10,14 +10,9 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import {
-  MINUTE,
-  type Block,
-  type GroupTotal,
-  type Metrics,
-  type Summary,
-} from "../../shared/timeline.ts";
+import { MINUTE, type Block, type Metrics, type Summary } from "../../shared/timeline.ts";
 import { clock, date, hours, monthNumber, usd, weekday } from "./format.ts";
+import { Breakdown } from "./Breakdown.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { supplementaryPreview } from "./markdown.ts";
 import { AccountUsageFields } from "./Usage.tsx";
@@ -58,42 +53,6 @@ export function SummaryPanel({
         <Text role="status">読み込み中</Text>
       )}
     </Modal>
-  );
-}
-
-function Breakdown({ title, totals }: { title: string; totals: GroupTotal[] }) {
-  return (
-    <Stack component="section" gap="xs" miw={0}>
-      <Title order={3} size="sm">
-        {title}
-      </Title>
-      <Table layout="fixed">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th scope="col">名前</Table.Th>
-            <Table.Th scope="col" ta="right">
-              稼働
-            </Table.Th>
-            <Table.Th scope="col" ta="right">
-              概算USD
-            </Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {totals.map(({ name, ms, estimatedCostUsd }) => (
-            <Table.Tr key={name}>
-              <Table.Th scope="row" fw={400} style={wrap}>
-                {name}
-              </Table.Th>
-              <Table.Td ta="right">{hours(ms)}</Table.Td>
-              <Table.Td ta="right" style={wrap}>
-                {usd(estimatedCostUsd)}
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Stack>
   );
 }
 
