@@ -36,7 +36,20 @@ export type Metrics = {
   toolCallCount?: number;
 };
 
+type ModelUsage = {
+  model: string;
+  serviceTier?: string;
+  inputTokens?: number;
+  cachedInputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  estimatedCostUsd?: number;
+};
+
 export type Block = Metrics & {
+  serviceTier?: string;
+  usageByModel?: ModelUsage[];
+  incompleteCost?: boolean;
   estimatedCostUsd?: number;
   reasoningEffort?: string;
   gitSha?: string;

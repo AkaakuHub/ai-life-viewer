@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"agent-timeline/internal/timeline"
 )
 
 const (
@@ -24,19 +26,21 @@ type Batch struct {
 }
 
 type Record struct {
-	SourceKey       string  `json:"sourceKey,omitempty"`
-	Session         string  `json:"session,omitempty"`
-	Agent           string  `json:"agent"`
-	Title           string  `json:"title"`
-	Project         string  `json:"project,omitempty"`
-	CWD             string  `json:"cwd,omitempty"`
-	Model           string  `json:"model,omitempty"`
-	Branch          string  `json:"branch,omitempty"`
-	ReasoningEffort string  `json:"reasoningEffort,omitempty"`
-	Tokens          Tokens  `json:"tokens,omitempty"`
-	TurnCount       *int64  `json:"turnCount,omitempty"`
-	ToolCallCount   *int64  `json:"toolCallCount,omitempty"`
-	Blocks          []Block `json:"blocks"`
+	ServiceTier     string                `json:"serviceTier,omitempty"`
+	UsageByModel    []timeline.ModelUsage `json:"usageByModel,omitempty"`
+	SourceKey       string                `json:"sourceKey,omitempty"`
+	Session         string                `json:"session,omitempty"`
+	Agent           string                `json:"agent"`
+	Title           string                `json:"title"`
+	Project         string                `json:"project,omitempty"`
+	CWD             string                `json:"cwd,omitempty"`
+	Model           string                `json:"model,omitempty"`
+	Branch          string                `json:"branch,omitempty"`
+	ReasoningEffort string                `json:"reasoningEffort,omitempty"`
+	Tokens          Tokens                `json:"tokens,omitempty"`
+	TurnCount       *int64                `json:"turnCount,omitempty"`
+	ToolCallCount   *int64                `json:"toolCallCount,omitempty"`
+	Blocks          []Block               `json:"blocks"`
 }
 
 type Tokens struct {
@@ -144,6 +148,9 @@ func (r Record) validate(path string) *Issue {
 		if v.count != nil && *v.count < 0 {
 			return &Issue{path + "." + v.name, "must be a nonnegative integer"}
 		}
+	}
+	if issue := r.validateModelUsage(path); issue != nil {
+		return issue
 	}
 	if len(r.Blocks) == 0 || len(r.Blocks) > MaxBlocks {
 		return &Issue{path + ".blocks", "provide 1–1000 blocks"}

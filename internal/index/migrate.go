@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-const metadataVersion = 3
+const metadataVersion = 5
 
 func migrate(db *sql.DB) error {
 	tx, err := db.Begin()
@@ -18,8 +18,10 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	switch version {
-	case 4:
+	case 5:
 		return nil
+	case 4:
+		return migrateModelUsage(tx)
 	case 3:
 		return migrateIngest(tx)
 	case 2:
@@ -129,3 +131,16 @@ const localTimeline = `
 			      AND EXISTS (SELECT 1 FROM blocks WHERE source=f.key)
 		);
 `
+
+func migrateModelUsage(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+		ALTER TABLE sources ADD COLUMN service_tier TEXT NOT NULL DEFAULT '';
+		ALTER TABLE sources ADD COLUMN usage_by_model TEXT NOT NULL DEFAULT '[]';
+		ALTER TABLE sources ADD COLUMN usage_snapshot TEXT NOT NULL DEFAULT '{}';
+		PRAGMA user_version=5;
+	`)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}

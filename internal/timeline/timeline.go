@@ -9,26 +9,39 @@ const Day = 24 * int64(time.Hour/time.Millisecond)
 
 var JST = time.FixedZone("JST", 9*60*60)
 
+type ModelUsage struct {
+	Model             string   `json:"model"`
+	ServiceTier       string   `json:"serviceTier,omitempty"`
+	InputTokens       *int64   `json:"inputTokens,omitempty"`
+	CachedInputTokens *int64   `json:"cachedInputTokens,omitempty"`
+	OutputTokens      *int64   `json:"outputTokens,omitempty"`
+	ReasoningTokens   *int64   `json:"reasoningTokens,omitempty"`
+	EstimatedCostUSD  *float64 `json:"estimatedCostUsd,omitempty"`
+}
+
 type Block struct {
 	Metrics
-	EstimatedCostUSD *float64 `json:"estimatedCostUsd,omitempty"`
-	Source           string   `json:"-"`
-	Session          string   `json:"session,omitempty"`
-	ReasoningEffort  string   `json:"reasoningEffort,omitempty"`
-	GitSHA           string   `json:"gitSha,omitempty"`
-	GitOriginURL     string   `json:"gitOriginUrl,omitempty"`
-	Provenance       string   `json:"provenance,omitempty"`
-	Preview          string   `json:"preview,omitempty"`
-	ID               int64    `json:"id"`
-	Agent            string   `json:"agent"`
-	Title            string   `json:"title"`
-	Project          string   `json:"project"`
-	CWD              string   `json:"cwd"`
-	Model            string   `json:"model"`
-	Branch           string   `json:"branch"`
-	Tokens           *int64   `json:"tokens"`
-	Start            int64    `json:"start"`
-	End              int64    `json:"end"`
+	UsageByModel     []ModelUsage `json:"usageByModel,omitempty"`
+	ServiceTier      string       `json:"serviceTier,omitempty"`
+	IncompleteCost   bool         `json:"incompleteCost,omitempty"`
+	EstimatedCostUSD *float64     `json:"estimatedCostUsd,omitempty"`
+	Source           string       `json:"-"`
+	Session          string       `json:"session,omitempty"`
+	ReasoningEffort  string       `json:"reasoningEffort,omitempty"`
+	GitSHA           string       `json:"gitSha,omitempty"`
+	GitOriginURL     string       `json:"gitOriginUrl,omitempty"`
+	Provenance       string       `json:"provenance,omitempty"`
+	Preview          string       `json:"preview,omitempty"`
+	ID               int64        `json:"id"`
+	Agent            string       `json:"agent"`
+	Title            string       `json:"title"`
+	Project          string       `json:"project"`
+	CWD              string       `json:"cwd"`
+	Model            string       `json:"model"`
+	Branch           string       `json:"branch"`
+	Tokens           *int64       `json:"tokens"`
+	Start            int64        `json:"start"`
+	End              int64        `json:"end"`
 }
 
 type DayTotal struct {
@@ -41,9 +54,11 @@ type Cost struct {
 	UnpricedSessions int      `json:"unpricedSessions,omitempty"`
 }
 
-func (c *Cost) add(cost *float64) {
-	if cost == nil {
+func (c *Cost) add(cost *float64, incomplete bool) {
+	if cost == nil || incomplete {
 		c.UnpricedSessions++
+	}
+	if cost == nil {
 		return
 	}
 	if c.EstimatedCostUSD == nil {
@@ -90,9 +105,9 @@ func Summarize(blocks []Block, start, end int64) Summary {
 		key := block.sessionKey()
 		if !seen[key] {
 			summary.Metrics.add(block.Metrics)
-			summary.Cost.add(block.EstimatedCostUSD)
-			agent.Cost.add(block.EstimatedCostUSD)
-			project.Cost.add(block.EstimatedCostUSD)
+			summary.Cost.add(block.EstimatedCostUSD, block.IncompleteCost)
+			agent.Cost.add(block.EstimatedCostUSD, block.IncompleteCost)
+			project.Cost.add(block.EstimatedCostUSD, block.IncompleteCost)
 			seen[key] = true
 		}
 		for i := int((from - first) / Day); i < len(summary.Days); i++ {

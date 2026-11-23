@@ -34,22 +34,37 @@ func (s *Store) Ingest(batch ingest.Batch) error {
 func mergeRecord(tx *sql.Tx, r ingest.Record) error {
 	session := r.SessionID()
 	key := "session:" + r.Agent + ":" + session
-	_, err := tx.Exec(`INSERT INTO sources (key,agent,session,title,project,cwd,model,branch,tokens,
-		input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,turn_count,tool_call_count,reasoning_effort)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	breakdown, err := modelUsageJSON(r.UsageByModel)
+	if err != nil {
+		return err
+	}
+	tokens := r.Tokens
+	if totals, ok := r.ModelUsageTotals(); len(r.UsageByModel) != 0 && ok {
+		tokens = totals
+	}
+	_, err = tx.Exec(`INSERT INTO sources (key,agent,session,title,project,cwd,model,branch,tokens,
+		input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,turn_count,tool_call_count,reasoning_effort,service_tier,usage_by_model)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(key) DO UPDATE SET
 			title=excluded.title, project=COALESCE(NULLIF(excluded.project,''),project),
 			cwd=COALESCE(NULLIF(excluded.cwd,''),cwd), model=COALESCE(NULLIF(excluded.model,''),model),
-			branch=COALESCE(NULLIF(excluded.branch,''),branch), tokens=COALESCE(excluded.tokens,tokens),
-			input_tokens=COALESCE(excluded.input_tokens,input_tokens),
-			cached_input_tokens=COALESCE(excluded.cached_input_tokens,cached_input_tokens),
-			output_tokens=COALESCE(excluded.output_tokens,output_tokens),
-			reasoning_tokens=COALESCE(excluded.reasoning_tokens,reasoning_tokens),
+			branch=COALESCE(NULLIF(excluded.branch,''),branch), tokens=CASE WHEN excluded.usage_by_model<>'[]' THEN excluded.tokens
+				WHEN usage_by_model<>'[]' THEN tokens ELSE COALESCE(excluded.tokens,tokens) END,
+			input_tokens=CASE WHEN excluded.usage_by_model<>'[]' THEN excluded.input_tokens
+				WHEN usage_by_model<>'[]' THEN input_tokens ELSE COALESCE(excluded.input_tokens,input_tokens) END,
+			cached_input_tokens=CASE WHEN excluded.usage_by_model<>'[]' THEN excluded.cached_input_tokens
+				WHEN usage_by_model<>'[]' THEN cached_input_tokens ELSE COALESCE(excluded.cached_input_tokens,cached_input_tokens) END,
+			output_tokens=CASE WHEN excluded.usage_by_model<>'[]' THEN excluded.output_tokens
+				WHEN usage_by_model<>'[]' THEN output_tokens ELSE COALESCE(excluded.output_tokens,output_tokens) END,
+			reasoning_tokens=CASE WHEN excluded.usage_by_model<>'[]' THEN excluded.reasoning_tokens
+				WHEN usage_by_model<>'[]' THEN reasoning_tokens ELSE COALESCE(excluded.reasoning_tokens,reasoning_tokens) END,
 			turn_count=COALESCE(excluded.turn_count,turn_count), tool_call_count=COALESCE(excluded.tool_call_count,tool_call_count),
-			reasoning_effort=COALESCE(NULLIF(excluded.reasoning_effort,''),reasoning_effort)`,
-		key, r.Agent, session, r.Title, r.Project, r.CWD, r.Model, r.Branch, r.Tokens.Total,
-		r.Tokens.Input, r.Tokens.CachedInput, r.Tokens.Output, r.Tokens.Reasoning,
-		r.TurnCount, r.ToolCallCount, r.ReasoningEffort)
+			reasoning_effort=COALESCE(NULLIF(excluded.reasoning_effort,''),reasoning_effort),
+			service_tier=COALESCE(NULLIF(excluded.service_tier,''),service_tier),
+			usage_by_model=CASE WHEN excluded.usage_by_model<>'[]' THEN excluded.usage_by_model ELSE usage_by_model END`,
+		key, r.Agent, session, r.Title, r.Project, r.CWD, r.Model, r.Branch, tokens.Total,
+		tokens.Input, tokens.CachedInput, tokens.Output, tokens.Reasoning,
+		r.TurnCount, r.ToolCallCount, r.ReasoningEffort, r.ServiceTier, breakdown)
 	if err != nil {
 		return err
 	}

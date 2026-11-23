@@ -2,6 +2,7 @@ package index
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -36,12 +37,19 @@ func (s *Store) indexFile(path, agent string, info os.FileInfo) error {
 	var spans []interval
 	if appendOnly {
 		next.offset = last.offset
+		var breakdown, snapshot string
 		err := s.db.QueryRow(`SELECT session,title,cwd,model,branch,tokens,input_tokens,cached_input_tokens,output_tokens,
-			reasoning_tokens,turn_count,tool_call_count,reasoning_effort,git_sha,git_origin_url,preview FROM sources WHERE key=?`, path).
+			reasoning_tokens,turn_count,tool_call_count,reasoning_effort,git_sha,git_origin_url,preview,service_tier,usage_by_model,usage_snapshot FROM sources WHERE key=?`, path).
 			Scan(&meta.Session, &meta.Title, &meta.CWD, &meta.Model, &meta.Branch, &meta.Tokens,
 				&meta.InputTokens, &meta.CachedInputTokens, &meta.OutputTokens, &meta.ReasoningTokens,
-				&meta.TurnCount, &meta.ToolCallCount, &meta.ReasoningEffort, &meta.GitSHA, &meta.GitOriginURL, &meta.Preview)
+				&meta.TurnCount, &meta.ToolCallCount, &meta.ReasoningEffort, &meta.GitSHA, &meta.GitOriginURL, &meta.Preview, &meta.serviceTier, &breakdown, &snapshot)
 		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal([]byte(breakdown), &meta.usageByModel); err != nil {
+			return err
+		}
+		if err := json.Unmarshal([]byte(snapshot), &meta.usageSnapshot); err != nil {
 			return err
 		}
 		rows, err := s.db.Query("SELECT start,last FROM blocks WHERE source=?", path)
@@ -95,19 +103,28 @@ func (s *Store) indexFile(path, agent string, info os.FileInfo) error {
 }
 
 func saveSource(tx *sql.Tx, key string, m source) error {
-	_, err := tx.Exec(`INSERT INTO sources(key,agent,session,title,project,cwd,model,branch,tokens,input_tokens,
+	breakdown, err := modelUsageJSON(m.usageByModel)
+	if err != nil {
+		return err
+	}
+	snapshot, err := json.Marshal(m.usageSnapshot)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`INSERT INTO sources(key,agent,session,title,project,cwd,model,branch,tokens,input_tokens,
 		cached_input_tokens,output_tokens,reasoning_tokens,turn_count,tool_call_count,reasoning_effort,
-		git_sha,git_origin_url,preview) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET
+		git_sha,git_origin_url,preview,service_tier,usage_by_model,usage_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET
 		agent=excluded.agent,session=excluded.session,title=excluded.title,project=excluded.project,
 		cwd=excluded.cwd,model=excluded.model,branch=excluded.branch,tokens=excluded.tokens,
 		input_tokens=excluded.input_tokens,cached_input_tokens=excluded.cached_input_tokens,
 		output_tokens=excluded.output_tokens,reasoning_tokens=excluded.reasoning_tokens,
 		turn_count=excluded.turn_count,tool_call_count=excluded.tool_call_count,
 		reasoning_effort=excluded.reasoning_effort,git_sha=excluded.git_sha,
-		git_origin_url=excluded.git_origin_url,preview=excluded.preview`,
+		git_origin_url=excluded.git_origin_url,preview=excluded.preview,service_tier=excluded.service_tier,
+		usage_by_model=excluded.usage_by_model,usage_snapshot=excluded.usage_snapshot`,
 		key, m.Agent, m.Session, m.Title, m.Project, m.CWD, m.Model, m.Branch, m.Tokens,
 		m.InputTokens, m.CachedInputTokens, m.OutputTokens, m.ReasoningTokens, m.TurnCount,
-		m.ToolCallCount, m.ReasoningEffort, m.GitSHA, m.GitOriginURL, m.Preview)
+		m.ToolCallCount, m.ReasoningEffort, m.GitSHA, m.GitOriginURL, m.Preview, m.serviceTier, breakdown, string(snapshot))
 	return err
 }
 

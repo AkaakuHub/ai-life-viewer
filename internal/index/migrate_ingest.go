@@ -72,5 +72,5 @@ func migrateIngest(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	return migrateModelUsage(tx)
 }

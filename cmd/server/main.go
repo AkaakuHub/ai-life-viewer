@@ -81,7 +81,7 @@ func routes(store *index.Store, rates *pricing.Source, auth ingest.Auth, dist fs
 		catalog := rates.Catalog()
 		for i := range blocks {
 			b := &blocks[i]
-			b.EstimatedCostUSD = catalog.Estimate(b.Model, b.InputTokens, b.CachedInputTokens, b.OutputTokens)
+			catalog.Price(b)
 		}
 		blocks = timeline.UnionSessions(blocks)
 		summary := timeline.Summarize(blocks, start, end)

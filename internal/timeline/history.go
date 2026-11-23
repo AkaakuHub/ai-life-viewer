@@ -47,7 +47,7 @@ func SummarizeHistory(start int64, blocks []Block, days []DayTotal, account map[
 			tokens = &sum
 		}
 		for _, period := range []*PeriodTotal{month, year} {
-			period.Cost.add(block.EstimatedCostUSD)
+			period.Cost.add(block.EstimatedCostUSD, block.IncompleteCost)
 			if tokens != nil {
 				addTokens(&period.Tokens, *tokens)
 			}

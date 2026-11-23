@@ -39,13 +39,23 @@
               "model": "gpt-6.2-sol",
               "branch": "main",
               "reasoningEffort": "medium",
-              "tokens": {
-                "total": 300,
-                "input": 200,
-                "cachedInput": 100,
-                "output": 100,
-                "reasoning": 40
-              },
+              "serviceTier": "fast",
+              "usageByModel": [
+                {
+                  "model": "gpt-6.1-sol",
+                  "inputTokens": 100,
+                  "cachedInputTokens": 50,
+                  "outputTokens": 50
+                },
+                {
+                  "model": "gpt-6.2-sol",
+                  "serviceTier": "fast",
+                  "inputTokens": 100,
+                  "cachedInputTokens": 50,
+                  "outputTokens": 50,
+                  "reasoningTokens": 40
+                }
+              ],
               "turnCount": 2,
               "toolCallCount": 3,
               "blocks": [
@@ -156,6 +166,16 @@
         "project": { "$ref": "#/$defs/MetadataText" },
         "cwd": { "$ref": "#/$defs/MetadataText" },
         "model": { "$ref": "#/$defs/MetadataText" },
+        "serviceTier": {
+          "$ref": "#/$defs/ServiceTier",
+          "description": "Used with session counters when no model breakdown is supplied"
+        },
+        "usageByModel": {
+          "type": "array",
+          "maxItems": 1000,
+          "description": "Complete session breakdown. A nonempty list replaces the previous breakdown and supplies session token totals. Omit to retain existing data.",
+          "items": { "$ref": "#/$defs/ModelUsageInput" }
+        },
         "branch": { "$ref": "#/$defs/MetadataText" },
         "reasoningEffort": { "$ref": "#/$defs/MetadataText" },
         "tokens": { "$ref": "#/$defs/Tokens" },
@@ -167,6 +187,37 @@
           "maxItems": 1000,
           "items": { "$ref": "#/$defs/BlockInput" }
         }
+      }
+    },
+    "ServiceTier": {
+      "enum": ["default", "standard", "fast", "priority"],
+      "description": "Omitted, default and standard use 1x rates. Fast and priority use 2x rates."
+    },
+    "ModelUsageInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "inputTokens", "outputTokens"],
+      "properties": {
+        "model": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "serviceTier": { "$ref": "#/$defs/ServiceTier" },
+        "inputTokens": { "$ref": "#/$defs/Counter" },
+        "cachedInputTokens": { "$ref": "#/$defs/Counter" },
+        "outputTokens": { "$ref": "#/$defs/Counter" },
+        "reasoningTokens": { "$ref": "#/$defs/Counter" }
+      },
+      "description": "Unique by model and tier. Input includes cached input and output includes reasoning tokens."
+    },
+    "ModelUsage": {
+      "type": "object",
+      "required": ["model"],
+      "properties": {
+        "model": { "type": "string" },
+        "serviceTier": { "type": "string" },
+        "inputTokens": { "$ref": "#/$defs/Counter" },
+        "cachedInputTokens": { "$ref": "#/$defs/Counter" },
+        "outputTokens": { "$ref": "#/$defs/Counter" },
+        "reasoningTokens": { "$ref": "#/$defs/Counter" },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 }
       }
     },
     "DailyUsage": {
@@ -275,11 +326,17 @@
       "properties": {
         "id": {
           "type": "integer",
-          "description": "Representative interval ID. Use with start to distinguish different dates."
+          "description": "Representative interval ID. External-only Ingest blocks can use a negative integer to avoid collision with local IDs. Use with start to distinguish different dates."
         },
         "agent": { "type": "string" },
         "title": { "type": "string" },
         "session": { "type": "string" },
+        "serviceTier": { "type": "string" },
+        "usageByModel": { "type": "array", "items": { "$ref": "#/$defs/ModelUsage" } },
+        "incompleteCost": {
+          "type": "boolean",
+          "description": "At least one model/tier in the breakdown could not be priced"
+        },
         "project": { "type": "string" },
         "cwd": { "type": "string" },
         "model": { "type": "string" },

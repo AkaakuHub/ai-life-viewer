@@ -16,6 +16,9 @@ import (
 
 type source struct {
 	timeline.Metrics
+	usageSnapshot                                      usage
+	usageByModel                                       []timeline.ModelUsage
+	serviceTier                                        string
 	ReasoningEffort, GitSHA, GitOriginURL, Preview     string
 	claudeMessages                                     map[string]claudeUsage
 	Agent, Session, Title, Project, CWD, Model, Branch string
@@ -27,11 +30,11 @@ type interval struct{ Start, Last int64 }
 const minute = int64(time.Minute / time.Millisecond)
 
 type usage struct {
-	Total     *int64 `json:"total_tokens"`
-	Input     *int64 `json:"input_tokens"`
-	Cached    *int64 `json:"cached_input_tokens"`
-	Output    *int64 `json:"output_tokens"`
-	Reasoning *int64 `json:"reasoning_output_tokens"`
+	Total     *int64 `json:"total_tokens,omitempty"`
+	Input     *int64 `json:"input_tokens,omitempty"`
+	Cached    *int64 `json:"cached_input_tokens,omitempty"`
+	Output    *int64 `json:"output_tokens,omitempty"`
+	Reasoning *int64 `json:"reasoning_output_tokens,omitempty"`
 }
 
 type entry struct {
@@ -51,11 +54,12 @@ type entry struct {
 		DurationMS  int64 `json:"duration_ms"`
 		ID          string
 		CWD         string
-		Model       string
-		Type        string
-		Effort      string
-		Message     string
-		Git         struct {
+		modelSettings
+		ThreadSettings modelSettings `json:"thread_settings"`
+		Type           string
+		Effort         string
+		Message        string
+		Git            struct {
 			Branch string
 			Commit string `json:"commit_hash"`
 			Remote string `json:"repository_url"`
@@ -63,6 +67,7 @@ type entry struct {
 		ThreadUsage usage `json:"thread_token_usage"`
 		Info        struct {
 			Total usage `json:"total_token_usage"`
+			Last  usage `json:"last_token_usage"`
 		}
 	}
 }
@@ -97,18 +102,19 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 				meta.GitOriginURL = cleanRemote(e.Payload.Git.Remote)
 				continue
 			case "turn_context":
-				if e.Payload.Model != "" {
-					meta.Model = e.Payload.Model
-				}
+				meta.applySettings(e.Payload.modelSettings)
 				if e.Payload.Effort != "" {
 					meta.ReasoningEffort = e.Payload.Effort
 				}
 			case "token_usage_record":
-				meta.setUsage(e.Payload.ThreadUsage)
+				meta.observeModelUsage(e.Payload.ThreadUsage, usage{})
 			case "event_msg":
 				switch e.Payload.Type {
 				case "token_count":
-					meta.setUsage(e.Payload.Info.Total)
+					meta.applySettings(e.Payload.modelSettings)
+					meta.observeModelUsage(e.Payload.Info.Total, e.Payload.Info.Last)
+				case "thread_settings_applied":
+					meta.applySettings(e.Payload.ThreadSettings)
 				case "task_started", "turn_started":
 					increment(&meta.TurnCount)
 				case "task_complete", "turn_complete", "turn_aborted":
@@ -201,20 +207,6 @@ func projectName(cwd string) string {
 		return "プロジェクト未設定"
 	}
 	return filepath.Base(cwd)
-}
-
-func (m *source) setUsage(u usage) {
-	for _, field := range []struct {
-		into  **int64
-		value *int64
-	}{
-		{&m.Tokens, u.Total}, {&m.InputTokens, u.Input}, {&m.CachedInputTokens, u.Cached},
-		{&m.OutputTokens, u.Output}, {&m.ReasoningTokens, u.Reasoning},
-	} {
-		if field.value != nil {
-			*field.into = field.value
-		}
-	}
 }
 
 func increment(counter **int64) {

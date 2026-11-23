@@ -91,6 +91,7 @@ func decodeCatalog(reader io.Reader) (*Catalog, error) {
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
+	best := make(map[string]string)
 	for _, raw := range keys {
 		var r rates
 		if json.Unmarshal(data.Document[raw], &r) != nil || r.Input == nil || r.Output == nil ||
@@ -100,7 +101,9 @@ func decodeCatalog(reader io.Reader) (*Catalog, error) {
 		key := strings.ToLower(strings.TrimSpace(raw))
 		c.exact[key] = r
 		model := normalize(key)
-		if _, exists := c.normalized[model]; !exists || key == model {
+		if previous, exists := best[model]; !exists || len(key) < len(previous) ||
+			(len(key) == len(previous) && c.normalized[model].Cached == nil && r.Cached != nil) {
+			best[model] = key
 			c.normalized[model] = r
 		}
 	}

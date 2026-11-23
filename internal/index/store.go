@@ -124,14 +124,21 @@ func (s *Store) Blocks(start, end int64, options Options, search string) ([]time
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(`SELECT id,agent,title,project,cwd,model,branch,tokens,start,end,
-		source,input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,turn_count,tool_call_count,
-		reasoning_effort,git_sha,git_origin_url,preview,provenance,
-		(SELECT session FROM sources WHERE key=timeline.source) FROM timeline
+	rows, err := s.db.Query(`SELECT id,timeline.agent,timeline.title,timeline.project,timeline.cwd,timeline.model,timeline.branch,timeline.tokens,start,end,
+		source,timeline.input_tokens,timeline.cached_input_tokens,timeline.output_tokens,timeline.reasoning_tokens,timeline.turn_count,timeline.tool_call_count,
+		timeline.reasoning_effort,timeline.git_sha,timeline.git_origin_url,timeline.preview,provenance,
+		own.session, COALESCE(NULLIF(own.service_tier,''),local.service_tier,''),
+		COALESCE(NULLIF(own.usage_by_model,'[]'),local.usage_by_model,'[]')
+		FROM timeline
+		JOIN sources own ON own.key=timeline.source
+		LEFT JOIN sources local ON own.key='session:'||own.agent||':'||own.session
+			AND own.usage_by_model='[]' AND own.input_tokens IS NULL AND own.output_tokens IS NULL
+			AND local.key=(SELECT l.source FROM local_timeline l JOIN sources m ON m.key=l.source
+				WHERE m.agent=own.agent AND m.session=own.session ORDER BY l.start,l.id LIMIT 1)
 		WHERE end>? AND start<?
-		  AND (?=0 OR agent IN (SELECT value FROM json_each(?)))
-		  AND (?=0 OR project IN (SELECT value FROM json_each(?)))
-		  AND (?='' OR instr(lower(title || ' ' || project || ' ' || cwd),lower(?))>0)
+		  AND (?=0 OR timeline.agent IN (SELECT value FROM json_each(?)))
+		  AND (?=0 OR timeline.project IN (SELECT value FROM json_each(?)))
+		  AND (?='' OR instr(lower(timeline.title || ' ' || timeline.project || ' ' || timeline.cwd),lower(?))>0)
 	    ORDER BY start,end,id`, start, end, len(options.Agents), string(agents), len(options.Projects), string(projects), search, search)
 	if err != nil {
 		return nil, err
@@ -140,10 +147,16 @@ func (s *Store) Blocks(start, end int64, options Options, search string) ([]time
 	out := []timeline.Block{}
 	for rows.Next() {
 		var b timeline.Block
+		var breakdown string
 		if err := rows.Scan(&b.ID, &b.Agent, &b.Title, &b.Project, &b.CWD, &b.Model, &b.Branch, &b.Tokens, &b.Start, &b.End,
 			&b.Source, &b.InputTokens, &b.CachedInputTokens, &b.OutputTokens, &b.ReasoningTokens, &b.TurnCount, &b.ToolCallCount,
-			&b.ReasoningEffort, &b.GitSHA, &b.GitOriginURL, &b.Preview, &b.Provenance, &b.Session); err != nil {
+			&b.ReasoningEffort, &b.GitSHA, &b.GitOriginURL, &b.Preview, &b.Provenance, &b.Session, &b.ServiceTier, &breakdown); err != nil {
 			return nil, err
+		}
+		if breakdown != "[]" {
+			if err := json.Unmarshal([]byte(breakdown), &b.UsageByModel); err != nil {
+				return nil, err
+			}
 		}
 		out = append(out, b)
 	}

@@ -160,8 +160,47 @@ function WorkMetrics({ metrics, title }: { metrics: Metrics; title: string }) {
   );
 }
 
+function modelLabel(model: string, tier?: string) {
+  const name = model || "モデル不明";
+  return tier && tier !== "default" && tier !== "standard" ? `${name} · ${tier}` : name;
+}
+
+function ModelUsageDetails({ block }: { block: Block }) {
+  return (
+    <Stack component="section" gap="xs">
+      <Title order={3} size="sm">
+        モデル別の利用内訳
+      </Title>
+      {block.usageByModel?.map((row) => (
+        <Stack key={`${row.model}:${row.serviceTier ?? "default"}`} gap={0}>
+          <Text fw={650} size="sm" style={wrap}>
+            {modelLabel(row.model, row.serviceTier)}
+          </Text>
+          <Details
+            fields={[
+              ...metricFields.map(([key, label]): [string, string | undefined] => {
+                const value =
+                  key in row && key !== "turnCount" && key !== "toolCallCount"
+                    ? row[key]
+                    : undefined;
+                return [label, value === undefined ? undefined : count.format(value)];
+              }),
+              ["概算API料金", usd(row.estimatedCostUsd)],
+            ]}
+          />
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
 export function BlockPanel({ block, close }: { block?: Block; close: () => void }) {
   const preview = block && supplementaryPreview(block.title, block.preview);
+  const firstModel = block?.usageByModel?.[0];
+  const showUsage =
+    firstModel &&
+    ((block?.usageByModel?.length ?? 0) > 1 ||
+      (firstModel.serviceTier && !["default", "standard"].includes(firstModel.serviceTier)));
   return (
     <Modal
       opened={Boolean(block)}
@@ -180,7 +219,15 @@ export function BlockPanel({ block, close }: { block?: Block; close: () => void 
               ["作業ディレクトリ", block.cwd],
               ["時間帯", blockTime(block)],
               ["実稼働", duration(block.activeMs)],
-              ["モデル", block.model],
+              [
+                "モデル",
+                showUsage
+                  ? undefined
+                  : modelLabel(
+                      firstModel?.model ?? block.model,
+                      firstModel?.serviceTier ?? block.serviceTier,
+                    ),
+              ],
               [
                 "記録元",
                 block.provenance === "metadata"
@@ -189,7 +236,10 @@ export function BlockPanel({ block, close }: { block?: Block; close: () => void 
                     ? "Codexターン履歴"
                     : undefined,
               ],
-              ["概算API料金（セッション）", usd(block.estimatedCostUsd)],
+              [
+                "概算API料金（セッション）",
+                `${usd(block.estimatedCostUsd)}${block.incompleteCost && block.estimatedCostUsd !== undefined ? "（一部未算出）" : ""}`,
+              ],
               ["推論レベル", block.reasoningEffort],
               ["Gitブランチ", block.branch],
               ["Gitコミット", block.gitSha],
@@ -197,6 +247,7 @@ export function BlockPanel({ block, close }: { block?: Block; close: () => void 
               ["合計トークン", block.tokens?.toLocaleString("ja-JP")],
             ]}
           />
+          {showUsage && <ModelUsageDetails block={block} />}
           <WorkMetrics metrics={block} title="セッションの集計" />
           {preview && (
             <Stack component="section" gap="xs">
