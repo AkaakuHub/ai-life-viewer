@@ -37,14 +37,15 @@ func (s *Store) syncCodex(path string) error {
 		return err
 	}
 	defer db.Close()
-	mark, err := watermark(s.db, "codex")
+	mark, err := watermark(s.db, "codex_metadata")
 	if err != nil {
 		return err
 	}
 	if mark == "" {
 		mark = "0"
 	}
-	rows, err := db.Query(`SELECT id,title,cwd,COALESCE(model,''),COALESCE(git_branch,''),tokens_used,updated_at_ms
+	rows, err := db.Query(`SELECT id,title,cwd,COALESCE(model,''),COALESCE(git_branch,''),tokens_used,updated_at_ms,
+		COALESCE(reasoning_effort,''),COALESCE(git_sha,''),COALESCE(git_origin_url,''),substr(trim(preview),1,240)
 		FROM threads WHERE updated_at_ms >= CAST(? AS INTEGER) ORDER BY updated_at_ms`, mark)
 	if err != nil {
 		return err
@@ -58,12 +59,17 @@ func (s *Store) syncCodex(path string) error {
 	for rows.Next() {
 		var m source
 		var tokens int64
-		if err := rows.Scan(&m.Session, &m.Title, &m.CWD, &m.Model, &m.Branch, &tokens, &mark); err != nil {
+		if err := rows.Scan(&m.Session, &m.Title, &m.CWD, &m.Model, &m.Branch, &tokens, &mark, &m.ReasoningEffort, &m.GitSHA, &m.GitOriginURL, &m.Preview); err != nil {
 			return err
 		}
-		_, err := tx.Exec(`INSERT INTO codex VALUES(?,?,?,?,?,?,?) ON CONFLICT(session) DO UPDATE SET
+		_, err := tx.Exec(`INSERT INTO codex(session,title,cwd,model,branch,tokens,project,reasoning_effort,git_sha,git_origin_url,preview)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session) DO UPDATE SET
 			title=excluded.title,cwd=excluded.cwd,model=excluded.model,branch=excluded.branch,
-			tokens=excluded.tokens,project=excluded.project`, m.Session, m.Title, m.CWD, m.Model, m.Branch, tokens, projectName(m.CWD))
+			tokens=excluded.tokens,project=excluded.project,
+			reasoning_effort=COALESCE(NULLIF(excluded.reasoning_effort,''),reasoning_effort),
+			git_sha=COALESCE(NULLIF(excluded.git_sha,''),git_sha),
+			git_origin_url=COALESCE(NULLIF(excluded.git_origin_url,''),git_origin_url),
+			preview=COALESCE(NULLIF(excluded.preview,''),preview)`, m.Session, m.Title, m.CWD, m.Model, m.Branch, tokens, projectName(m.CWD), m.ReasoningEffort, m.GitSHA, cleanRemote(m.GitOriginURL), m.Preview)
 		if err != nil {
 			return err
 		}
@@ -71,7 +77,7 @@ func (s *Store) syncCodex(path string) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if err := writeWatermark(tx, "codex", mark); err != nil {
+	if err := writeWatermark(tx, "codex_metadata", mark); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -83,7 +89,7 @@ func (s *Store) syncT3(path string) error {
 		return err
 	}
 	defer db.Close()
-	mark, err := watermark(s.db, "t3")
+	mark, err := watermark(s.db, "t3_metrics_v1")
 	if err != nil {
 		return err
 	}
@@ -95,7 +101,12 @@ func (s *Store) syncT3(path string) error {
 			COALESCE(json_extract(pt.payload_json,'$.nativeThreadRef.nativeId'),''),
 			COALESCE(json_extract(r.payload_json,'$.workStartedAt'),json_extract(r.payload_json,'$.startedAt'),''),
 			COALESCE(r.completed_at,json_extract(r.payload_json,'$.completedAt'),''),
-			r.status,MAX(t.updated_at,r.requested_at,COALESCE(r.completed_at,''))
+			r.status,MAX(t.updated_at,r.requested_at,COALESCE(r.completed_at,'')),
+			(SELECT COUNT(*) FROM orchestration_v2_projection_turn_items i
+			 WHERE i.run_id=r.run_id AND i.type IN ('command_execution','dynamic_tool','file_change','file_search','web_search','subagent')),
+			COALESCE((SELECT json_extract(option.value,'$.value')
+				FROM json_each(r.payload_json,'$.modelSelection.options') option
+				WHERE json_extract(option.value,'$.id') IN ('reasoningEffort','thought_level') LIMIT 1),'')
 		FROM orchestration_v2_projection_runs r
 		JOIN orchestration_v2_projection_threads t ON t.thread_id=r.thread_id
 		LEFT JOIN projection_projects p ON p.project_id=t.project_id
@@ -118,11 +129,12 @@ func (s *Store) syncT3(path string) error {
 		var run, provider, start, end, status, updated string
 		var m source
 		if err := rows.Scan(&run, &provider, &m.Title, &m.CWD, &m.Project, &m.Branch, &m.Model, &m.Session,
-			&start, &end, &status, &updated); err != nil {
+			&start, &end, &status, &updated, &m.ToolCallCount, &m.ReasoningEffort); err != nil {
 			return err
 		}
 		mark = max(mark, updated)
 		m.Agent = agents[provider]
+		increment(&m.TurnCount)
 		if m.Project == "" {
 			m.Project = projectName(m.CWD)
 		}
@@ -148,7 +160,7 @@ func (s *Store) syncT3(path string) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if err := writeWatermark(tx, "t3", mark); err != nil {
+	if err := writeWatermark(tx, "t3_metrics_v1", mark); err != nil {
 		return err
 	}
 	return tx.Commit()

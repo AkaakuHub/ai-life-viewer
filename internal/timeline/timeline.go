@@ -10,16 +10,22 @@ const Day = 24 * int64(time.Hour/time.Millisecond)
 var JST = time.FixedZone("JST", 9*60*60)
 
 type Block struct {
-	ID      int64  `json:"id"`
-	Agent   string `json:"agent"`
-	Title   string `json:"title"`
-	Project string `json:"project"`
-	CWD     string `json:"cwd"`
-	Model   string `json:"model"`
-	Branch  string `json:"branch"`
-	Tokens  *int64 `json:"tokens"`
-	Start   int64  `json:"start"`
-	End     int64  `json:"end"`
+	Metrics
+	Source          string `json:"-"`
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
+	GitSHA          string `json:"gitSha,omitempty"`
+	GitOriginURL    string `json:"gitOriginUrl,omitempty"`
+	Preview         string `json:"preview,omitempty"`
+	ID              int64  `json:"id"`
+	Agent           string `json:"agent"`
+	Title           string `json:"title"`
+	Project         string `json:"project"`
+	CWD             string `json:"cwd"`
+	Model           string `json:"model"`
+	Branch          string `json:"branch"`
+	Tokens          *int64 `json:"tokens"`
+	Start           int64  `json:"start"`
+	End             int64  `json:"end"`
 }
 
 type DayTotal struct {
@@ -33,6 +39,7 @@ type Group struct {
 }
 
 type Summary struct {
+	Metrics
 	Total    int64      `json:"totalMs"`
 	Agents   []Group    `json:"agents"`
 	Projects []Group    `json:"projects"`
@@ -43,6 +50,7 @@ func Summarize(blocks []Block, start, end int64) Summary {
 	summary := Summary{Days: []DayTotal{}}
 	agents := make(map[string]int64)
 	projects := make(map[string]int64)
+	seen := make(map[string]bool)
 	d := time.UnixMilli(start).In(JST)
 	first := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, JST).UnixMilli()
 	for day := first; day < end; day += Day {
@@ -52,6 +60,10 @@ func Summarize(blocks []Block, start, end int64) Summary {
 		from, to := max(start, block.Start), min(end, block.End)
 		if from >= to {
 			continue
+		}
+		if !seen[block.Source] {
+			summary.Metrics.add(block.Metrics)
+			seen[block.Source] = true
 		}
 		ms := to - from
 		summary.Total += ms

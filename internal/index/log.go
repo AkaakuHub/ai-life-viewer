@@ -6,12 +6,19 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/url"
+	"strings"
+
+	"agent-timeline/internal/timeline"
 	"path/filepath"
 	"sort"
 	"time"
 )
 
 type source struct {
+	timeline.Metrics
+	ReasoningEffort, GitSHA, GitOriginURL, Preview     string
+	claudeMessages                                     map[string]claudeUsage
 	Agent, Session, Title, Project, CWD, Model, Branch string
 	Tokens                                             *int64
 }
@@ -37,7 +44,11 @@ func mergeIntervals(spans []interval) []interval {
 }
 
 type usage struct {
-	Total *int64 `json:"total_tokens"`
+	Total     *int64 `json:"total_tokens"`
+	Input     *int64 `json:"input_tokens"`
+	Cached    *int64 `json:"cached_input_tokens"`
+	Output    *int64 `json:"output_tokens"`
+	Reasoning *int64 `json:"reasoning_output_tokens"`
 }
 
 type entry struct {
@@ -47,13 +58,20 @@ type entry struct {
 	CWD       string
 	GitBranch string
 	Slug      string
-	Message   struct{ Model string }
+	Message   claudeMessage
+	IsMeta    bool
 	Payload   struct {
-		ID          string
-		CWD         string
-		Model       string
-		Type        string
-		Git         struct{ Branch string }
+		ID      string
+		CWD     string
+		Model   string
+		Type    string
+		Effort  string
+		Message string
+		Git     struct {
+			Branch string
+			Commit string `json:"commit_hash"`
+			Remote string `json:"repository_url"`
+		}
 		ThreadUsage usage `json:"thread_token_usage"`
 		Info        struct {
 			Total usage `json:"total_token_usage"`
@@ -75,7 +93,7 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 		}
 		offset += int64(len(line))
 		var e entry
-		if stamp, ok := codexEventTime(line, meta.Agent); ok {
+		if stamp, ok := codexEventTime(line, meta); ok {
 			if stamp != 0 {
 				spans = append(spans, interval{stamp, stamp})
 			}
@@ -90,20 +108,33 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 				meta.Session = e.Payload.ID
 				meta.CWD = e.Payload.CWD
 				meta.Branch = e.Payload.Git.Branch
+				meta.GitSHA = e.Payload.Git.Commit
+				meta.GitOriginURL = cleanRemote(e.Payload.Git.Remote)
 				continue
 			case "turn_context":
 				if e.Payload.Model != "" {
 					meta.Model = e.Payload.Model
 				}
-			case "token_usage_record":
-				if e.Payload.ThreadUsage.Total != nil {
-					meta.Tokens = e.Payload.ThreadUsage.Total
+				if e.Payload.Effort != "" {
+					meta.ReasoningEffort = e.Payload.Effort
 				}
+			case "token_usage_record":
+				meta.setUsage(e.Payload.ThreadUsage)
 			case "event_msg":
-				if e.Payload.Type == "token_count" && e.Payload.Info.Total.Total != nil {
-					meta.Tokens = e.Payload.Info.Total.Total
+				switch e.Payload.Type {
+				case "token_count":
+					meta.setUsage(e.Payload.Info.Total)
+				case "task_started", "turn_started":
+					increment(&meta.TurnCount)
+				case "user_message":
+					if meta.Preview == "" {
+						meta.Preview = shortPreview(e.Payload.Message)
+					}
 				}
 			case "response_item":
+				if isToolCall(e.Payload.Type) {
+					increment(&meta.ToolCallCount)
+				}
 			default:
 				continue
 			}
@@ -123,9 +154,7 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 			if e.Slug != "" {
 				meta.Title = e.Slug
 			}
-			if e.Message.Model != "" {
-				meta.Model = e.Message.Model
-			}
+			meta.observeClaude(e)
 		}
 		stamp := e.Timestamp.UnixMilli()
 		spans = append(spans, interval{stamp, stamp})
@@ -133,8 +162,8 @@ func parseLog(reader io.Reader, meta *source) ([]interval, int64, error) {
 }
 
 // Codex writes large response bodies and snapshots after the timestamp and type.
-func codexEventTime(line []byte, agent string) (int64, bool) {
-	if agent != "cx" {
+func codexEventTime(line []byte, meta *source) (int64, bool) {
+	if meta.Agent != "cx" {
 		return 0, false
 	}
 	rest, ok := bytes.CutPrefix(line, []byte(`{"timestamp":"`))
@@ -150,11 +179,18 @@ func codexEventTime(line []byte, agent string) (int64, bool) {
 		bytes.HasPrefix(rest, []byte(`thread_name"`)) {
 		return 0, true
 	}
-	if !bytes.HasPrefix(rest, []byte(`response_item"`)) {
-		return 0, false
+	if payload, ok := bytes.CutPrefix(rest, []byte(`response_item","payload":{"type":"`)); ok {
+		kind, _, ok := bytes.Cut(payload, []byte(`"`))
+		t, err := time.Parse(time.RFC3339Nano, string(stamp))
+		if !ok || err != nil {
+			return 0, false
+		}
+		if isToolCall(string(kind)) {
+			increment(&meta.ToolCallCount)
+		}
+		return t.UnixMilli(), true
 	}
-	t, err := time.Parse(time.RFC3339Nano, string(stamp))
-	return t.UnixMilli(), err == nil
+	return 0, false
 }
 
 func projectName(cwd string) string {
@@ -162,4 +198,61 @@ func projectName(cwd string) string {
 		return "プロジェクト未設定"
 	}
 	return filepath.Base(cwd)
+}
+
+func (m *source) setUsage(u usage) {
+	for _, field := range []struct {
+		into  **int64
+		value *int64
+	}{
+		{&m.Tokens, u.Total}, {&m.InputTokens, u.Input}, {&m.CachedInputTokens, u.Cached},
+		{&m.OutputTokens, u.Output}, {&m.ReasoningTokens, u.Reasoning},
+	} {
+		if field.value != nil {
+			*field.into = field.value
+		}
+	}
+}
+
+func increment(counter **int64) {
+	if *counter == nil {
+		*counter = new(int64)
+	}
+	**counter++
+}
+
+func isToolCall(kind string) bool {
+	switch kind {
+	case "function_call", "custom_tool_call", "local_shell_call", "web_search_call", "file_search_call", "computer_call", "mcp_call":
+		return true
+	default:
+		return false
+	}
+}
+
+func shortPreview(text string) string {
+	text = strings.TrimSpace(text)
+	if len(text) <= 240 {
+		return text
+	}
+	count := 0
+	for offset := range text {
+		if count == 240 {
+			return strings.TrimSpace(text[:offset])
+		}
+		count++
+	}
+	return text
+}
+
+func cleanRemote(raw string) string {
+	if !strings.Contains(raw, "://") {
+		return raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	u.User, u.RawQuery, u.Fragment, u.RawFragment, u.ForceQuery = nil, "", "", "", false
+	return u.String()
 }

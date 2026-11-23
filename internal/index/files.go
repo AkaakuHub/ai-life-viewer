@@ -8,18 +8,21 @@ import (
 	"syscall"
 )
 
-type fileState struct{ mtime, size, offset, device, inode int64 }
+type fileState struct {
+	mtime, size, offset, device, inode int64
+	version                            int
+}
 
 func (s *Store) indexFile(path, agent string, info os.FileInfo) error {
 	stat := info.Sys().(*syscall.Stat_t)
 	next := fileState{mtime: info.ModTime().UnixNano(), size: info.Size(), device: int64(stat.Dev), inode: int64(stat.Ino)}
 	var last fileState
-	err := s.db.QueryRow("SELECT mtime_ns,size,byte_offset,device,inode FROM files WHERE path=?", path).
-		Scan(&last.mtime, &last.size, &last.offset, &last.device, &last.inode)
+	err := s.db.QueryRow("SELECT mtime_ns,size,byte_offset,device,inode,metadata_version FROM files WHERE path=?", path).
+		Scan(&last.mtime, &last.size, &last.offset, &last.device, &last.inode, &last.version)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	sameFile := err == nil && last.device == next.device && last.inode == next.inode
+	sameFile := err == nil && last.version == metadataVersion && last.device == next.device && last.inode == next.inode
 	if sameFile && next.mtime == last.mtime && next.size == last.size {
 		return nil
 	}
@@ -33,8 +36,11 @@ func (s *Store) indexFile(path, agent string, info os.FileInfo) error {
 	var spans []interval
 	if appendOnly {
 		next.offset = last.offset
-		err := s.db.QueryRow("SELECT session,title,cwd,model,branch,tokens FROM sources WHERE key=?", path).
-			Scan(&meta.Session, &meta.Title, &meta.CWD, &meta.Model, &meta.Branch, &meta.Tokens)
+		err := s.db.QueryRow(`SELECT session,title,cwd,model,branch,tokens,input_tokens,cached_input_tokens,output_tokens,
+			reasoning_tokens,turn_count,tool_call_count,reasoning_effort,git_sha,git_origin_url,preview FROM sources WHERE key=?`, path).
+			Scan(&meta.Session, &meta.Title, &meta.CWD, &meta.Model, &meta.Branch, &meta.Tokens,
+				&meta.InputTokens, &meta.CachedInputTokens, &meta.OutputTokens, &meta.ReasoningTokens,
+				&meta.TurnCount, &meta.ToolCallCount, &meta.ReasoningEffort, &meta.GitSHA, &meta.GitOriginURL, &meta.Preview)
 		if err != nil {
 			return err
 		}
@@ -71,12 +77,17 @@ func (s *Store) indexFile(path, agent string, info os.FileInfo) error {
 	if err := saveSource(tx, path, meta); err != nil {
 		return err
 	}
+	if agent == "cl" {
+		if err := saveClaudeUsage(tx, path, appendOnly, meta.claudeMessages); err != nil {
+			return err
+		}
+	}
 	if err := saveIntervals(tx, path, mergeIntervals(append(spans, events...))); err != nil {
 		return err
 	}
-	_, err = tx.Exec(`INSERT INTO files VALUES(?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET
+	_, err = tx.Exec(`INSERT INTO files(path,mtime_ns,size,byte_offset,device,inode,metadata_version) VALUES(?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET
 		mtime_ns=excluded.mtime_ns,size=excluded.size,byte_offset=excluded.byte_offset,
-		device=excluded.device,inode=excluded.inode`, path, next.mtime, next.size, next.offset, next.device, next.inode)
+		device=excluded.device,inode=excluded.inode,metadata_version=excluded.metadata_version`, path, next.mtime, next.size, next.offset, next.device, next.inode, metadataVersion)
 	if err != nil {
 		return err
 	}
@@ -84,10 +95,19 @@ func (s *Store) indexFile(path, agent string, info os.FileInfo) error {
 }
 
 func saveSource(tx *sql.Tx, key string, m source) error {
-	_, err := tx.Exec(`INSERT INTO sources VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET
+	_, err := tx.Exec(`INSERT INTO sources(key,agent,session,title,project,cwd,model,branch,tokens,input_tokens,
+		cached_input_tokens,output_tokens,reasoning_tokens,turn_count,tool_call_count,reasoning_effort,
+		git_sha,git_origin_url,preview) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET
 		agent=excluded.agent,session=excluded.session,title=excluded.title,project=excluded.project,
-		cwd=excluded.cwd,model=excluded.model,branch=excluded.branch,tokens=excluded.tokens`,
-		key, m.Agent, m.Session, m.Title, m.Project, m.CWD, m.Model, m.Branch, m.Tokens)
+		cwd=excluded.cwd,model=excluded.model,branch=excluded.branch,tokens=excluded.tokens,
+		input_tokens=excluded.input_tokens,cached_input_tokens=excluded.cached_input_tokens,
+		output_tokens=excluded.output_tokens,reasoning_tokens=excluded.reasoning_tokens,
+		turn_count=excluded.turn_count,tool_call_count=excluded.tool_call_count,
+		reasoning_effort=excluded.reasoning_effort,git_sha=excluded.git_sha,
+		git_origin_url=excluded.git_origin_url,preview=excluded.preview`,
+		key, m.Agent, m.Session, m.Title, m.Project, m.CWD, m.Model, m.Branch, m.Tokens,
+		m.InputTokens, m.CachedInputTokens, m.OutputTokens, m.ReasoningTokens, m.TurnCount,
+		m.ToolCallCount, m.ReasoningEffort, m.GitSHA, m.GitOriginURL, m.Preview)
 	return err
 }
 
