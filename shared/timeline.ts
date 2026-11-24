@@ -78,7 +78,7 @@ type Cost = {
   unpricedSessions?: number;
 };
 
-export type GroupTotal = Cost & { name: string; ms: number };
+export type GroupTotal = Cost & { name: string; ms: number; pcIds?: string[] };
 export type BlockResult = { blocks: Block[]; days: DayTotal[]; accountUsage: AccountUsage };
 export type Summary = Metrics &
   Cost & {

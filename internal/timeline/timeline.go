@@ -1,6 +1,7 @@
 package timeline
 
 import (
+	"slices"
 	"sort"
 	"time"
 )
@@ -70,8 +71,9 @@ func (c *Cost) add(cost *float64, incomplete bool) {
 
 type Group struct {
 	Cost
-	Name string `json:"name"`
-	MS   int64  `json:"ms"`
+	Name  string   `json:"name"`
+	MS    int64    `json:"ms"`
+	PCIDs []string `json:"pcIds,omitempty"`
 }
 
 type Summary struct {
@@ -103,6 +105,11 @@ func Summarize(blocks []Block, start, end int64) Summary {
 		agent, project := group(agents, block.Agent), group(projects, block.Project)
 		agent.MS += ms
 		project.MS += ms
+		for _, id := range block.PCIDs {
+			if !slices.Contains(project.PCIDs, id) {
+				project.PCIDs = append(project.PCIDs, id)
+			}
+		}
 		key := block.sessionKey()
 		if !seen[key] {
 			summary.Metrics.add(block.Metrics)
@@ -134,6 +141,7 @@ func group(totals map[string]*Group, name string) *Group {
 func groups(totals map[string]*Group) []Group {
 	out := make([]Group, 0, len(totals))
 	for _, total := range totals {
+		slices.Sort(total.PCIDs)
 		out = append(out, *total)
 	}
 	sort.Slice(out, func(i, j int) bool {

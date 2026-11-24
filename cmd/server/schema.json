@@ -431,7 +431,11 @@
       "allOf": [{ "$ref": "#/$defs/Cost" }],
       "type": "object",
       "required": ["name", "ms"],
-      "properties": { "name": { "type": "string" }, "ms": { "$ref": "#/$defs/Counter" } }
+      "properties": {
+        "name": { "type": "string" },
+        "ms": { "$ref": "#/$defs/Counter" },
+        "pcIds": { "type": "array", "items": { "type": "string" } }
+      }
     },
     "Trend": {
       "allOf": [{ "$ref": "#/$defs/Cost" }],

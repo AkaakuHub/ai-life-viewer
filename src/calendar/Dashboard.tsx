@@ -100,7 +100,7 @@ export default function Dashboard({
         <IngestPCs />
         <SimpleGrid cols={{ base: 1, md: 2 }}>
           <Breakdown title="エージェント別" totals={summary.agents} />
-          <Breakdown title="プロジェクト別" totals={summary.projects} />
+          <Breakdown title="プロジェクト別" totals={summary.projects} showPCs />
         </SimpleGrid>
       </Stack>
     </Box>
