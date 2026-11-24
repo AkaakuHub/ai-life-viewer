@@ -39,17 +39,21 @@ python3 scripts/ingest_client.py --dry-run
 ### 2. 全プロバイダーを一括送信（棚卸し・過去分バックフィル）
 
 ```bash
+export AGENT_TIMELINE_PC_ID="macbook"
 export AGENT_TIMELINE_URL="https://vcn-tokyo-main.tail4c0963.ts.net:14443"
 export AGENT_TIMELINE_INGEST_TOKEN="<サーバーの ingest.token>"
 
 python3 scripts/ingest_client.py -v
 ```
 
+送信にはPCごとに異なる識別子が必要です。サーバー本体はホスト名で表示されます。
+
 トークンをファイルから渡す場合:
 
 ```bash
 python3 scripts/ingest_client.py \
   --url "https://vcn-tokyo-main.tail4c0963.ts.net:14443" \
+  --pc-id macbook \
   --token-file /path/to/ingest.token \
   -v
 ```

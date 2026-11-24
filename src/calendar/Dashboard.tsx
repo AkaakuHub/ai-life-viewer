@@ -6,6 +6,7 @@ import { Breakdown } from "./Breakdown.tsx";
 import { DashboardCount } from "./DashboardCount.tsx";
 import { DashboardSkeleton } from "./DashboardSkeleton.tsx";
 import { DashboardMonths } from "./DashboardMonths.tsx";
+import { IngestPCs } from "./IngestPCs.tsx";
 import { AgentChart, ProjectChart } from "./charts/BreakdownCharts.tsx";
 import { MonthChart } from "./charts/MonthChart.tsx";
 import { hours, usd } from "./format.ts";
@@ -96,6 +97,7 @@ export default function Dashboard({
           <ProjectChart projects={summary.projects} />
         </SimpleGrid>
         <DashboardMonths months={summary.history.months} openMonth={openMonth} />
+        <IngestPCs />
         <SimpleGrid cols={{ base: 1, md: 2 }}>
           <Breakdown title="エージェント別" totals={summary.agents} />
           <Breakdown title="プロジェクト別" totals={summary.projects} />

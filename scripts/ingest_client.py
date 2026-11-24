@@ -1275,8 +1275,8 @@ def make_batches(
     return batches
 
 
-def post_batch(endpoint: str, batch: list[dict], token: str, timeout: int = 60) -> dict:
-    body = json.dumps({"records": batch}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+def post_batch(endpoint: str, batch: list[dict], token: str, pc_id: str, timeout: int = 60) -> dict:
+    body = json.dumps({"pcId": pc_id, "records": batch}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     req = urllib.request.Request(
         endpoint,
         data=body,
@@ -1344,6 +1344,7 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("AGENT_TIMELINE_INGEST_TOKEN", ""),
         help="Bearer token (or env AGENT_TIMELINE_INGEST_TOKEN)",
     )
+    ap.add_argument("--pc-id", default=os.environ.get("AGENT_TIMELINE_PC_ID"), help="Unique PC identifier (or env AGENT_TIMELINE_PC_ID)")
     ap.add_argument("--token-file", help="Path to a file containing the Bearer token")
     ap.add_argument(
         "--providers",
@@ -1374,6 +1375,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="Parse and print summary without sending")
     ap.add_argument("-v", "--verbose", action="store_true", help="Print progress to stderr")
     args = ap.parse_args(argv)
+    if not args.dry_run and not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}", args.pc_id or ""):
+        ap.error("--pc-id must start with a letter or number and contain 1–64 letters, numbers, dots, underscores or hyphens")
 
     providers = parse_providers(args.providers)
     gap_ms = max(1, args.gap_seconds) * 1000
@@ -1435,7 +1438,7 @@ def main(argv: list[str] | None = None) -> int:
     endpoint = normalize_endpoint(args.url)
     ingested = 0
     for idx, batch in enumerate(batches, 1):
-        res = post_batch(endpoint, batch, token)
+        res = post_batch(endpoint, batch, token, args.pc_id)
         ingested += int(res.get("records", 0))
         if args.verbose:
             print(f"Batch {idx}/{len(batches)}: sent {len(batch)} -> {res}", file=sys.stderr)

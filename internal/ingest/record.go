@@ -21,6 +21,7 @@ const (
 )
 
 type Batch struct {
+	PCID       string       `json:"pcId"`
 	Records    []Record     `json:"records,omitempty"`
 	DailyUsage []DailyUsage `json:"dailyUsage,omitempty"`
 }
@@ -76,7 +77,12 @@ func (r Record) SessionID() string {
 	return r.Session
 }
 
+var pcIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$`)
+
 func (b Batch) Validate() *Issue {
+	if !pcIDPattern.MatchString(b.PCID) {
+		return &Issue{"pcId", "provide a PC identifier of 1 to 64 letters, numbers, dots, underscores or hyphens, starting with a letter or number"}
+	}
 	if len(b.Records) == 0 && len(b.DailyUsage) == 0 {
 		return &Issue{"body", "provide at least one record or daily usage entry"}
 	}

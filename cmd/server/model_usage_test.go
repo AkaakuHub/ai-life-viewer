@@ -15,7 +15,7 @@ func TestIngestPricesModelBreakdownAndPreservesItOnPartialUpdates(t *testing.T) 
 	const start = 1795400400000
 	submit := func(extra string, want int) {
 		t.Helper()
-		body := fmt.Sprintf(`{"records":[{"agent":"cx","session":"mac","title":"External","blocks":[{"start":%d,"end":%d}]%s}]}`, start, start+60000, extra)
+		body := fmt.Sprintf(`{"pcId":"test-pc","records":[{"agent":"cx","session":"mac","title":"External","blocks":[{"start":%d,"end":%d}]%s}]}`, start, start+60000, extra)
 		w := request(handler, http.MethodPost, "/api/v1/ingest", body, testToken)
 		if w.Code != want {
 			t.Fatalf("ingest status=%d: %s", w.Code, w.Body.String())

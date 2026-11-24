@@ -55,7 +55,10 @@ func initialize(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS blocks_end ON blocks(end);
 		CREATE UNIQUE INDEX IF NOT EXISTS blocks_source_start ON blocks(source,start);
 		CREATE TABLE IF NOT EXISTS watermarks (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-		CREATE TABLE IF NOT EXISTS codex (
+		CREATE TABLE IF NOT EXISTS ingest_pcs (
+ pc_id TEXT PRIMARY KEY, last_ingest INTEGER NOT NULL
+ );
+ CREATE TABLE IF NOT EXISTS codex (
 			session TEXT PRIMARY KEY, title TEXT NOT NULL, cwd TEXT NOT NULL,
 			model TEXT NOT NULL, branch TEXT NOT NULL, tokens INTEGER NOT NULL, project TEXT NOT NULL
 		);
@@ -72,18 +75,45 @@ func uri(path, query string) string {
 	return (&url.URL{Scheme: "file", Path: path, RawQuery: query}).String()
 }
 
+type IngestPC struct {
+	ID         string `json:"id"`
+	LastIngest int64  `json:"lastIngest"`
+}
+
 type Status struct {
-	Files    int   `json:"indexedFiles"`
-	Blocks   int   `json:"blockCount"`
-	LastSync int64 `json:"lastSync"`
+	ServerPCID string     `json:"serverPcId"`
+	IngestPCs  []IngestPC `json:"ingestPcs"`
+	Files      int        `json:"indexedFiles"`
+	Blocks     int        `json:"blockCount"`
+	LastSync   int64      `json:"lastSync"`
 }
 
 func (s *Store) Status() (Status, error) {
-	var out Status
-	err := s.db.QueryRow(`SELECT (SELECT COUNT(*) FROM files),
+	out := Status{IngestPCs: []IngestPC{}}
+	hostname, err := os.Hostname()
+	if err != nil {
+		return out, err
+	}
+	out.ServerPCID = hostname
+	err = s.db.QueryRow(`SELECT (SELECT COUNT(*) FROM files),
 		(SELECT COUNT(*) FROM timeline),
 		COALESCE((SELECT value FROM watermarks WHERE key='sync'),0)`).Scan(&out.Files, &out.Blocks, &out.LastSync)
-	return out, err
+	if err != nil {
+		return out, err
+	}
+	rows, err := s.db.Query("SELECT pc_id,last_ingest FROM ingest_pcs ORDER BY pc_id")
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pc IngestPC
+		if err := rows.Scan(&pc.ID, &pc.LastIngest); err != nil {
+			return out, err
+		}
+		out.IngestPCs = append(out.IngestPCs, pc)
+	}
+	return out, rows.Err()
 }
 
 type Options struct {

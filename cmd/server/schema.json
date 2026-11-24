@@ -19,6 +19,7 @@
       },
       "examples": {
         "minimum": {
+          "pcId": "macbook",
           "records": [
             {
               "agent": "cx",
@@ -29,6 +30,7 @@
           ]
         },
         "complete": {
+          "pcId": "macbook",
           "records": [
             {
               "sourceKey": "session-on-mac",
@@ -232,8 +234,10 @@
     },
     "Ingest": {
       "type": "object",
+      "required": ["pcId"],
       "additionalProperties": false,
       "properties": {
+        "pcId": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$" },
         "records": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/RecordInput" } },
         "dailyUsage": {
           "type": "array",
@@ -472,8 +476,20 @@
     },
     "Status": {
       "type": "object",
-      "required": ["indexedFiles", "blockCount", "lastSync"],
+      "required": ["indexedFiles", "blockCount", "lastSync", "serverPcId", "ingestPcs"],
       "properties": {
+        "serverPcId": { "type": "string" },
+        "ingestPcs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "lastIngest"],
+            "properties": {
+              "id": { "type": "string" },
+              "lastIngest": { "$ref": "#/$defs/Timestamp" }
+            }
+          }
+        },
         "indexedFiles": { "$ref": "#/$defs/Counter" },
         "blockCount": { "$ref": "#/$defs/Counter" },
         "lastSync": { "$ref": "#/$defs/Timestamp" }

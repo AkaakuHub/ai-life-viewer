@@ -28,6 +28,10 @@ func (s *Store) Ingest(batch ingest.Batch) error {
 			return err
 		}
 	}
+	if _, err := tx.Exec(`INSERT INTO ingest_pcs(pc_id,last_ingest) VALUES(?,?)
+ ON CONFLICT(pc_id) DO UPDATE SET last_ingest=max(last_ingest,excluded.last_ingest)`, batch.PCID, now); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 

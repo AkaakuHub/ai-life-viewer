@@ -48,8 +48,9 @@ func TestIngestRejectsUnauthorizedAndInvalidBatch(t *testing.T) {
 		status             int
 	}{
 		{"wrong", "{}", "Authorization", 401},
-		{testToken, `{"records":[{"agent":"cx","session":"x","title":"x","blocks":[{"start":1795400400,"end":1795400700}]}]}`, "records[0].blocks[0].start", 400},
-		{testToken, `{"dailyUsage":[{"agent":"cx","day":"2026-11-23"}]}`, "dailyUsage[0].tokens", 400},
+		{testToken, "{}", "pcId", 400},
+		{testToken, `{"pcId":"test-pc","records":[{"agent":"cx","session":"x","title":"x","blocks":[{"start":1795400400,"end":1795400700}]}]}`, "records[0].blocks[0].start", 400},
+		{testToken, `{"pcId":"test-pc","dailyUsage":[{"agent":"cx","day":"2026-11-23"}]}`, "dailyUsage[0].tokens", 400},
 	} {
 		w := request(handler, http.MethodPost, "/api/v1/ingest", tc.body, tc.token)
 		var problem ingest.Issue
@@ -95,7 +96,7 @@ func TestIngestMergesExistingSessionAndUpdatesWithoutDuplicates(t *testing.T) {
 	}
 	submit := func(end int64) {
 		t.Helper()
-		body := fmt.Sprintf(`{"records":[{"agent":"cx","session":"shared","title":"Remote",
+		body := fmt.Sprintf(`{"pcId":"test-pc","records":[{"agent":"cx","session":"shared","title":"Remote",
 			"tokens":{"input":150},"blocks":[{"start":%d,"end":%d},{"start":%d,"end":%d}]}],
 			"dailyUsage":[{"agent":"cx","day":"2026-11-23","tokens":40}]}`,
 			start+30000, start+90000, start+120000, end)
@@ -113,6 +114,15 @@ func TestIngestMergesExistingSessionAndUpdatesWithoutDuplicates(t *testing.T) {
 		t.Fatalf("unexpected merge: %+v %+v", first, daily)
 	}
 	submit(start + 240000)
+	statusResponse := request(handler, http.MethodGet, "/api/status", "", "")
+	var status index.Status
+	if err := json.Unmarshal(statusResponse.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if statusResponse.Code != http.StatusOK || status.ServerPCID == "" ||
+		len(status.IngestPCs) != 1 || status.IngestPCs[0].ID != "test-pc" || status.IngestPCs[0].LastIngest <= 0 {
+		t.Fatalf("unexpected PC status: %+v", status)
+	}
 	second, _ := read()
 	if len(second) != 1 || second[0].ID != first[0].ID || second[0].End != start+240000 || second[0].ActiveMS != 210000 {
 		t.Fatalf("unexpected upsert: %+v", second)
