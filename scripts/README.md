@@ -20,6 +20,16 @@
 
 ## 使い方
 
+### 送信用トークンの再発行
+
+稼働ホストでサービスと同じユーザー（現在は `ubuntu`）として実行します。
+
+```bash
+/opt/ai-life-viewer/agent-timeline rotate-token && sudo systemctl restart ai-life-viewer
+```
+
+新しいトークンは `ingest.token` に権限 `0600` で保存され、端末にも表示されます。サービスの再起動で旧トークンが失効するため、送信元の端末すべてで新しいトークンに更新してください。
+
 ### 1. ドライラン（送信せずに件数・期間を確認）
 
 ```bash

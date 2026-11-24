@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -21,6 +22,10 @@ import (
 )
 
 func main() {
+	args := os.Args[1:]
+	if len(args) != 0 && (len(args) != 1 || args[0] != "rotate-token") {
+		log.Fatal("usage: agent-timeline [rotate-token]")
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatal(err)
@@ -29,12 +34,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	tokenPath := filepath.Join(dataDir, "ingest.token")
+	if len(args) == 1 {
+		token, err := ingest.RotateToken(tokenPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(token)
+		return
+	}
 	store, err := index.Open(filepath.Join(dataDir, "agent-timeline.sqlite"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer store.Close()
-	auth, err := ingest.LoadAuth(filepath.Join(dataDir, "ingest.token"))
+	auth, err := ingest.LoadAuth(tokenPath)
 	if err != nil {
 		log.Fatal(err)
 	}

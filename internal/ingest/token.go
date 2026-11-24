@@ -39,31 +39,42 @@ func LoadAuth(path string) (Auth, error) {
 	if !errors.Is(err, os.ErrNotExist) {
 		return auth, err
 	}
+	token, err := writeNewToken(path, os.Link)
+	if errors.Is(err, os.ErrExist) {
+		return readToken(path)
+	}
+	if err != nil {
+		return Auth{}, err
+	}
+	return NewAuth(token), nil
+}
+
+func RotateToken(path string) (string, error) {
+	if os.Getenv(TokenEnv) != "" {
+		return "", errors.New("cannot rotate a token configured through " + TokenEnv)
+	}
+	return writeNewToken(path, os.Rename)
+}
+
+func writeNewToken(path string, publish func(string, string) error) (string, error) {
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
-		return Auth{}, err
+		return "", err
 	}
 	token := base64.RawURLEncoding.EncodeToString(secret[:])
 	file, err := os.CreateTemp(filepath.Dir(path), ".ingest-token-*")
 	if err != nil {
-		return Auth{}, err
+		return "", err
 	}
 	defer os.Remove(file.Name())
-	if err := file.Chmod(0600); err != nil {
-		_ = file.Close()
-		return Auth{}, err
-	}
 	_, writeErr := file.WriteString(token + "\n")
 	if err := errors.Join(writeErr, file.Close()); err != nil {
-		return Auth{}, err
+		return "", err
 	}
-	if err := os.Link(file.Name(), path); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			return readToken(path)
-		}
-		return Auth{}, err
+	if err := publish(file.Name(), path); err != nil {
+		return "", err
 	}
-	return NewAuth(token), nil
+	return token, nil
 }
 
 func readToken(path string) (Auth, error) {
