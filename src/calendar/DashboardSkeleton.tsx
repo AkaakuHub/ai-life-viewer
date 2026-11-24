@@ -1,40 +1,28 @@
-import {
-  Box,
-  Card,
-  Paper,
-  SimpleGrid,
-  Skeleton,
-  Stack,
-  Title,
-  VisuallyHidden,
-} from "@mantine/core";
+import { DashboardStage } from "./DashboardStage.tsx";
+import { Box, Card, Paper, SimpleGrid, Skeleton, Stack, VisuallyHidden } from "@mantine/core";
 
 export function DashboardSkeleton() {
   return (
     <Box
       component="section"
       aria-label="全期間ダッシュボード"
+      className="dashboard"
       flex={1}
       mih={0}
       style={{ overflow: "auto" }}
     >
       <VisuallyHidden role="status">ダッシュボードを読み込み中</VisuallyHidden>
       <Stack px={{ base: "xs", sm: "lg" }} py="md" gap="lg" maw={1280} mx="auto">
-        <Stack gap="xs">
-          <Title order={1} size="h4">
-            全期間
-          </Title>
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing={{ base: "xs", sm: "md" }}>
-            {Array.from({ length: 7 }, (_, index) => (
-              <Card key={index} withBorder padding="sm" aria-hidden="true">
-                <Stack gap={6}>
-                  <Skeleton h={12} w="66%" />
-                  <Skeleton h={22} w="48%" />
-                </Stack>
-              </Card>
-            ))}
-          </SimpleGrid>
-        </Stack>
+        <DashboardStage loading>
+          {Array.from({ length: 6 }, (_, index) => (
+            <Card key={index} withBorder padding="sm" aria-hidden="true">
+              <Stack gap={6}>
+                <Skeleton h={12} w="66%" />
+                <Skeleton h={22} w="48%" />
+              </Stack>
+            </Card>
+          ))}
+        </DashboardStage>
         <Paper withBorder p={{ base: "sm", md: "md" }} aria-hidden="true">
           <Stack gap="md">
             <Skeleton h={40} w={124} />
