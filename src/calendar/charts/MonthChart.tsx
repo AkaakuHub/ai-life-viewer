@@ -26,7 +26,7 @@ export function MonthChart({
   const series =
     metric === "tokens"
       ? [
-          { name: "tokens", label: "セッション", color: "cyan.5" },
+          { name: "tokens", label: "セッション", color: "#82c7cf" },
           ...(showAccount
             ? [{ name: "accountTokens", label: "Codexアカウント", color: "violet.5" }]
             : []),
@@ -35,7 +35,7 @@ export function MonthChart({
           {
             name: metric,
             label: metric === "hours" ? "稼働時間" : "概算料金",
-            color: metric === "hours" ? "blue.5" : "teal.5",
+            color: metric === "hours" ? "#eabb73" : "#d98981",
           },
         ];
   const barProps: Partial<BarProps> = {

@@ -8,14 +8,22 @@ import {
   Table,
   Text,
   Title,
-  useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { useState } from "react";
 import { HOUR, type GroupTotal } from "../../../shared/timeline.ts";
 import { chartValue, rankProjects, workMetrics, type WorkMetric } from "./metrics.ts";
 
-const palette = ["blue", "violet", "teal", "orange", "pink", "cyan", "lime", "grape"];
+const palette = [
+  "#eabb73",
+  "#82c7cf",
+  "#d98981",
+  "#c0a3e2",
+  "#a3cd99",
+  "#de975b",
+  "#8da9ed",
+  "#d0b8aa",
+];
 
 function share(value: number, total: number) {
   if (total === 0) return "—";
@@ -24,12 +32,11 @@ function share(value: number, total: number) {
 }
 
 export function AgentChart({ agents }: { agents: GroupTotal[] }) {
-  const theme = useMantineTheme();
   const rows = agents.map(({ name, ms, estimatedCostUsd }, index) => ({
     name,
     hours: ms / HOUR,
     cost: estimatedCostUsd,
-    color: theme.colors[palette[index % palette.length]][5],
+    color: palette[index % palette.length],
   }));
   const totalHours = rows.reduce((sum, row) => sum + row.hours, 0);
   const totalCost = rows.reduce((sum, row) => sum + (row.cost ?? 0), 0);
@@ -165,7 +172,7 @@ export function ProjectChart({ projects }: { projects: GroupTotal[] }) {
               {
                 name: "value",
                 label: metric === "hours" ? "稼働時間" : "概算料金",
-                color: metric === "hours" ? "blue.5" : "teal.5",
+                color: metric === "hours" ? "#eabb73" : "#d98981",
               },
             ]}
             maxBarWidth={20}

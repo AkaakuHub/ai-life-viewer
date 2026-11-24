@@ -58,7 +58,10 @@ func main() {
 	go store.WatchAccountUsage(ctx, dataDir)
 	rates := pricing.Load(filepath.Join(home, ".t3/userdata/usage-model-rates.json"))
 	go rates.Watch(ctx)
-	server := http.Server{Addr: "127.0.0.1:4180", Handler: routes(store, rates, auth, os.DirFS("dist")), ReadHeaderTimeout: 5 * time.Second}
+	mux := http.NewServeMux()
+	registerExchangeRate(ctx, mux)
+	mux.Handle("/", routes(store, rates, auth, os.DirFS("dist")))
+	server := http.Server{Addr: "127.0.0.1:4180", Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	log.Printf("listening on http://%s", server.Addr)
 	log.Fatal(server.ListenAndServe())
 }

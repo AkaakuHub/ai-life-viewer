@@ -1,8 +1,17 @@
-import { Box, Skeleton, Text, Title } from "@mantine/core";
+import { Box, Skeleton, Text, Title, VisuallyHidden } from "@mantine/core";
 import { Crown } from "lucide-react";
 import type { ReactNode } from "react";
+import { DashboardYen } from "./DashboardYen.tsx";
 import { usd } from "./format.ts";
 import "./dashboard-stage.css";
+
+function amountDigits(value: string, offset = 0) {
+  return Array.from(value, (digit, index) => (
+    <span key={offset + index} style={{ animationDelay: `${(offset + index) * 55}ms` }}>
+      {digit}
+    </span>
+  ));
+}
 
 export function DashboardStage({
   pcs,
@@ -33,17 +42,19 @@ export function DashboardStage({
           <Skeleton className="dashboard-stage__placeholder" aria-hidden="true" />
         ) : (
           <div className="dashboard-stage__amount">
+            <VisuallyHidden>{amount}</VisuallyHidden>
             <span className="dashboard-stage__depth" aria-hidden="true">
-              {whole}
-              {cents && <small>.{cents}</small>}
+              {amountDigits(whole)}
+              {cents && <small>{amountDigits(`.${cents}`, whole.length)}</small>}
             </span>
-            <span className="dashboard-stage__face">
-              {whole}
-              {cents && <small>.{cents}</small>}
+            <span className="dashboard-stage__face" aria-hidden="true">
+              {amountDigits(whole)}
+              {cents && <small>{amountDigits(`.${cents}`, whole.length)}</small>}
             </span>
           </div>
         )}
         <div className="dashboard-stage__podium" aria-hidden="true" />
+        {cost !== undefined && <DashboardYen dollars={cost} />}
         {note}
       </div>
       <div className="dashboard-stage__stats">{children}</div>

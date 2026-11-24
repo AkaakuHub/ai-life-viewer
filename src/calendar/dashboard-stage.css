@@ -3,8 +3,25 @@
 }
 
 .dashboard :is(.mantine-Paper-root, .mantine-Card-root) {
-  --paper-border-color: #64503c;
-  background-color: #20191d;
+  --paper-border-color: #765738;
+  background: linear-gradient(155deg, #2b2023 0%, #1c171c 72%);
+  box-shadow:
+    inset 0 1px #ffd9901f,
+    0 0.5rem 1.25rem #10080d40;
+}
+
+.dashboard :is(h2, h3) {
+  color: #f6d7a2;
+}
+
+.dashboard .mantine-SegmentedControl-root {
+  --sc-color: #674528;
+  background: #171116;
+  border: 1px solid #765738;
+}
+
+.dashboard .mantine-SegmentedControl-label[data-active] {
+  color: #ffe8be;
 }
 
 .dashboard-stage {
@@ -99,7 +116,7 @@
     0.08em 0.12em 0.14em #140609;
 }
 
-.dashboard-stage__face {
+.dashboard-stage__face span {
   color: #ffdc89;
   background: linear-gradient(
     172deg,
@@ -113,6 +130,22 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   -webkit-text-stroke: 0.008em #ffe0a1;
+}
+
+.dashboard-stage__amount :is(.dashboard-stage__face, .dashboard-stage__depth) span {
+  display: inline-block;
+  animation: dashboard-digit-in 420ms cubic-bezier(0.2, 0.75, 0.35, 1) both;
+}
+
+@keyframes dashboard-digit-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.22em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dashboard-stage__podium {
@@ -133,6 +166,28 @@
   color: #e8c8a7;
 }
 
+.dashboard-stage__yen {
+  max-width: 100%;
+  margin-block: 0.25rem 0.55rem;
+}
+
+.dashboard-stage__yen-amount {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.16em 0.85em;
+  margin: 0 auto 0.25rem;
+  overflow-wrap: anywhere;
+  border: 1px solid #ffdc8a;
+  border-radius: 0.4rem;
+  background: linear-gradient(110deg, #a2602c, #ffe0a0 31%, #f6c573 63%, #ad672f);
+  box-shadow:
+    inset 0 0 0 2px #6b401b66,
+    0 0.25rem 0.6rem #19090880;
+  color: #291608;
+  font-size: clamp(1rem, 4.8cqi, 1.75rem);
+  font-variant-numeric: tabular-nums;
+}
+
 .dashboard-stage__placeholder {
   width: 78%;
   height: clamp(2.6rem, 16cqi, 8rem);
@@ -148,7 +203,13 @@
 }
 
 .dashboard-stage__stats .mantine-Card-root {
-  background: linear-gradient(140deg, #2e2325, #1d171d 75%);
+  border-inline-start: 2px solid #bd8b52;
+  background: radial-gradient(ellipse at 95% 115%, #9d654431, transparent 70%), #241b20;
+  color: #fff0d6;
+}
+
+.dashboard-stage__stats .mantine-Card-root .mantine-Text-root[data-size="xs"] {
+  color: #ddc5af;
 }
 
 @media (min-width: 68rem) {
@@ -197,7 +258,7 @@
 }
 
 @media (forced-colors: active) {
-  .dashboard-stage__face {
+  .dashboard-stage__face span {
     background: none;
     -webkit-text-fill-color: currentColor;
     -webkit-text-stroke: 0;
@@ -205,5 +266,11 @@
 
   .dashboard-stage__depth {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-stage__amount :is(.dashboard-stage__face, .dashboard-stage__depth) span {
+    animation: none;
   }
 }

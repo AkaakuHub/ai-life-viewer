@@ -94,6 +94,21 @@
     "GET /api/status": {
       "responses": { "200": { "$ref": "#/$defs/Status" }, "500": { "type": "string" } }
     },
+    "GET /api/exchange-rate": {
+      "description": "Latest cached USD/JPY reference rate from Frankfurter, or null until one is available.",
+      "responses": {
+        "200": {
+          "type": ["object", "null"],
+          "required": ["date", "base", "quote", "rate"],
+          "properties": {
+            "date": { "$ref": "#/$defs/DayDate" },
+            "base": { "const": "USD" },
+            "quote": { "const": "JPY" },
+            "rate": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    },
     "GET /api/schema": { "responses": { "200": { "$ref": "#/$defs/ServiceSchema" } } }
   },
   "$defs": {
