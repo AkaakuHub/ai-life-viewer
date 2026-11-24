@@ -1344,7 +1344,7 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("AGENT_TIMELINE_INGEST_TOKEN", ""),
         help="Bearer token (or env AGENT_TIMELINE_INGEST_TOKEN)",
     )
-    ap.add_argument("--pc-id", default=os.environ.get("AGENT_TIMELINE_PC_ID"), help="Unique PC identifier (or env AGENT_TIMELINE_PC_ID)")
+    ap.add_argument("--pc-id", required=True, help="Unique identifier for this PC")
     ap.add_argument("--token-file", help="Path to a file containing the Bearer token")
     ap.add_argument(
         "--providers",
@@ -1375,7 +1375,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="Parse and print summary without sending")
     ap.add_argument("-v", "--verbose", action="store_true", help="Print progress to stderr")
     args = ap.parse_args(argv)
-    if not args.dry_run and not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}", args.pc_id or ""):
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}", args.pc_id):
         ap.error("--pc-id must start with a letter or number and contain 1–64 letters, numbers, dots, underscores or hyphens")
 
     providers = parse_providers(args.providers)

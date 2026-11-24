@@ -32,28 +32,29 @@
 
 ### 1. ドライラン（送信せずに件数・期間を確認）
 
+すべての実行で `--pc-id` が必須です。例の `office-pc` は、実行するPCごとに異なる識別子に置き換えてください。同じPCでは再送時も同じ識別子を指定します。サーバー本体はホスト名で表示されます。
+
 ```bash
-python3 scripts/ingest_client.py --dry-run
+python3 scripts/ingest_client.py --pc-id office-pc --dry-run
 ```
 
 ### 2. 全プロバイダーを一括送信（棚卸し・過去分バックフィル）
 
 ```bash
-export AGENT_TIMELINE_PC_ID="macbook"
 export AGENT_TIMELINE_URL="https://vcn-tokyo-main.tail4c0963.ts.net:14443"
 export AGENT_TIMELINE_INGEST_TOKEN="<サーバーの ingest.token>"
 
-python3 scripts/ingest_client.py -v
+python3 scripts/ingest_client.py --pc-id office-pc -v
 ```
 
-送信にはPCごとに異なる識別子が必要です。サーバー本体はホスト名で表示されます。
+識別子の導入前に送信した履歴も、同じエージェントとセッションIDで再送すると既存の記録が更新され、送信元PCが一覧に追加されます。
 
 トークンをファイルから渡す場合:
 
 ```bash
 python3 scripts/ingest_client.py \
   --url "https://vcn-tokyo-main.tail4c0963.ts.net:14443" \
-  --pc-id macbook \
+  --pc-id office-pc \
   --token-file /path/to/ingest.token \
   -v
 ```
@@ -62,10 +63,10 @@ python3 scripts/ingest_client.py \
 
 ```bash
 # Codex と Claude Code / GLM のみ送信
-python3 scripts/ingest_client.py --providers cx,cc,glm -v
+python3 scripts/ingest_client.py --pc-id office-pc --providers cx,cc,glm -v
 
 # 指定日（JST）以降に更新されたセッションのみ送信
-python3 scripts/ingest_client.py --since 2026-11-01 -v
+python3 scripts/ingest_client.py --pc-id office-pc --since 2026-11-01 -v
 ```
 
 ## テスト

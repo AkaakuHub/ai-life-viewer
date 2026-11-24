@@ -74,8 +74,11 @@ func TestIngestMergesExistingSessionAndUpdatesWithoutDuplicates(t *testing.T) {
 			VALUES('/logs/codex.jsonl','cx','shared','Local','local','/local','local-model','main',20);
 		INSERT INTO files VALUES('/logs/codex.jsonl',1,10,10,1,1,1);
 		INSERT INTO blocks(source,start,last,end) VALUES('/logs/codex.jsonl',?, ?, ?);
+		INSERT INTO sources(key,agent,session,title,project,cwd,model,branch,input_tokens)
+			VALUES('session:cx:shared','cx','shared','Prior upload','','','','',100);
+		INSERT INTO session_intervals(source,start,end) VALUES('session:cx:shared',?,?);
 		INSERT INTO daily_usage VALUES('cx','2026-11-23',30,1);
-	`, start, start+60000, start+60000); err != nil {
+	`, start, start+60000, start+60000, start+30000, start+75000); err != nil {
 		t.Fatal(err)
 	}
 	read := func() ([]timeline.CalendarBlock, []ingest.DailyUsage) {
