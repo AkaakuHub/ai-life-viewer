@@ -6,14 +6,20 @@ import { usd } from "./format.ts";
 import "./dashboard-stage.css";
 
 function amountDigits(value: string, laterDigits = 0) {
-  return Array.from(value, (digit, index) => (
-    <span
-      key={index}
-      style={{ animationDelay: `${(laterDigits + value.length - 1 - index) * 55}ms` }}
-    >
-      {digit}
-    </span>
-  ));
+  let digitsToRight = laterDigits;
+  const characters = Array.from(value)
+    .reverse()
+    .map((character, index) => {
+      const isDigit = /[0-9]/.test(character);
+      const beat = Math.max(0, digitsToRight - (isDigit ? 0 : 1));
+      if (isDigit) digitsToRight++;
+      return (
+        <span key={index} style={{ animationDelay: `${90 + beat * 175}ms` }}>
+          {character}
+        </span>
+      );
+    });
+  return characters.reverse();
 }
 
 export function DashboardStage({
@@ -48,11 +54,11 @@ export function DashboardStage({
           <div className="dashboard-stage__amount">
             <VisuallyHidden>{amount}</VisuallyHidden>
             <span className="dashboard-stage__depth" aria-hidden="true">
-              {amountDigits(whole, fraction.length)}
+              {amountDigits(whole, cents?.length)}
               {fraction && <small>{amountDigits(fraction)}</small>}
             </span>
             <span className="dashboard-stage__face" aria-hidden="true">
-              {amountDigits(whole, fraction.length)}
+              {amountDigits(whole, cents?.length)}
               {fraction && <small>{amountDigits(fraction)}</small>}
             </span>
           </div>

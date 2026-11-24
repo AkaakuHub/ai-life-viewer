@@ -134,16 +134,19 @@
 
 .dashboard-stage__amount :is(.dashboard-stage__face, .dashboard-stage__depth) span {
   display: inline-block;
-  animation: dashboard-digit-in 420ms cubic-bezier(0.2, 0.75, 0.35, 1) both;
+  animation: dashboard-digit-in 820ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
 @keyframes dashboard-digit-in {
   from {
     opacity: 0;
-    transform: translateY(0.22em);
+    transform: translateY(0.56em);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(-0.035em);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
