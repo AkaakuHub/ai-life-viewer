@@ -22,7 +22,7 @@
 
 ### 送信用トークンの再発行
 
-稼働ホストでサービスと同じユーザー（現在は `ubuntu`）として実行します。
+サービスの起動に使っているサーバーバイナリ `agent-timeline` に、再発行用のサブコマンド `rotate-token` が組み込まれています。稼働ホストでサービスと同じユーザー（現在は `ubuntu`）として実行します。
 
 ```bash
 /opt/ai-life-viewer/agent-timeline rotate-token && sudo systemctl restart ai-life-viewer
