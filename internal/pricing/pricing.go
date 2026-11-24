@@ -83,6 +83,9 @@ func (c *Catalog) Estimate(model, tier string, input, cached, output *int64) *fl
 		}
 		cachedCount = *cached
 	}
+	if *input == 0 && *output == 0 && cachedCount == 0 {
+		return new(float64)
+	}
 	current := c.exact[strings.ToLower(strings.TrimSpace(model))]
 	if current.Input == nil || current.Output == nil {
 		current = c.normalized[key]
@@ -111,6 +114,7 @@ func (c *Catalog) Estimate(model, tier string, input, cached, output *int64) *fl
 func (c *Catalog) Price(block *timeline.Block) {
 	if len(block.UsageByModel) == 0 {
 		block.EstimatedCostUSD = c.Estimate(block.Model, block.ServiceTier, block.InputTokens, block.CachedInputTokens, block.OutputTokens)
+		block.MissingTokenBreakdown = block.EstimatedCostUSD == nil && (block.InputTokens == nil || block.OutputTokens == nil)
 		return
 	}
 	var total *float64
@@ -119,6 +123,7 @@ func (c *Catalog) Price(block *timeline.Block) {
 		row.EstimatedCostUSD = c.Estimate(row.Model, row.ServiceTier, row.InputTokens, row.CachedInputTokens, row.OutputTokens)
 		if row.EstimatedCostUSD == nil {
 			block.IncompleteCost = true
+			block.MissingTokenBreakdown = block.MissingTokenBreakdown || row.InputTokens == nil || row.OutputTokens == nil
 			continue
 		}
 		if total == nil {

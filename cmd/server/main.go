@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-timeline/internal/accountusage"
 	"agent-timeline/internal/index"
 	"agent-timeline/internal/ingest"
 	"agent-timeline/internal/pricing"
@@ -86,7 +87,7 @@ func routes(store *index.Store, rates *pricing.Source, auth ingest.Auth, dist fs
 			}
 		}
 
-		options := index.Options{Agents: filters(query["agents"]), Projects: query["projects"]}
+		options := index.Options{Agents: filters(query["agents"]), Projects: query["projects"], PCs: query["pcs"]}
 		blocks, err := store.Blocks(start, end, options, strings.TrimSpace(query.Get("q")))
 		if err != nil {
 			respond(w, struct{}{}, err)
@@ -99,15 +100,19 @@ func routes(store *index.Store, rates *pricing.Source, auth ingest.Auth, dist fs
 		}
 		blocks = timeline.UnionSessions(blocks)
 		summary := timeline.Summarize(blocks, start, end)
-		usage, err := store.AccountUsage(start, end)
-		if err != nil {
-			respond(w, struct{}{}, err)
-			return
-		}
-		daily, err := store.DailyUsage(start, end)
-		if err != nil {
-			respond(w, struct{}{}, err)
-			return
+		usage := index.AccountUsage{Days: []accountusage.Bucket{}}
+		daily := []ingest.DailyUsage{}
+		if len(options.PCs) == 0 {
+			usage, err = store.AccountUsage(start, end)
+			if err != nil {
+				respond(w, struct{}{}, err)
+				return
+			}
+			daily, err = store.DailyUsage(start, end)
+			if err != nil {
+				respond(w, struct{}{}, err)
+				return
+			}
 		}
 		if r.URL.Path == "/api/summary" {
 			var history *timeline.History

@@ -134,9 +134,9 @@ function App() {
         {view === "top" ? (
           <Suspense fallback={<DashboardSkeleton />}>
             <Dashboard
-              summary={dashboard.data ?? dashboard.previousData}
+              summary={dashboard.data}
               failed={dashboard.error}
-              loading={dashboard.loading}
+              pcs={selection.pcs}
               openMonth={(day) => drillDown("month", day)}
             />
           </Suspense>

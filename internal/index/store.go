@@ -125,6 +125,7 @@ func (s *Store) Status() (Status, error) {
 type Options struct {
 	Agents   []string `json:"agents"`
 	Projects []string `json:"projects"`
+	PCs      []string `json:"pcs"`
 }
 
 func (s *Store) Options() (Options, error) {
@@ -148,7 +149,23 @@ func (s *Store) Options() (Options, error) {
 			return out, err
 		}
 	}
-	return out, nil
+	hostname, err := os.Hostname()
+	if err != nil {
+		return out, err
+	}
+	rows, err := s.db.Query("SELECT ? AS id UNION SELECT pc_id FROM ingest_pcs ORDER BY id", hostname)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return out, err
+		}
+		out.PCs = append(out.PCs, id)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) Blocks(start, end int64, options Options, search string) ([]timeline.Block, error) {
@@ -203,6 +220,11 @@ func (s *Store) Blocks(start, end int64, options Options, search string) ([]time
 		}
 		if hasLocal && !slices.Contains(b.PCIDs, hostname) {
 			b.PCIDs = append(b.PCIDs, hostname)
+		}
+		if len(options.PCs) != 0 && !slices.ContainsFunc(b.PCIDs, func(id string) bool {
+			return slices.Contains(options.PCs, id)
+		}) {
+			continue
 		}
 		if breakdown != "[]" {
 			if err := json.Unmarshal([]byte(breakdown), &b.UsageByModel); err != nil {

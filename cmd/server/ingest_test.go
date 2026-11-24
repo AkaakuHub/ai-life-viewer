@@ -141,6 +141,27 @@ func TestIngestMergesExistingSessionAndUpdatesWithoutDuplicates(t *testing.T) {
 			t.Fatalf("PC %q missing from %v", pcID, second[0].PCIDs)
 		}
 	}
+	for _, filter := range []struct {
+		query string
+		want  int
+	}{
+		{"pcs=test-pc&pcs=second-pc", 1},
+		{"pcs=unknown-pc", 0},
+	} {
+		url := fmt.Sprintf("/api/blocks?start=%d&end=%d&%s", start, start+500000, filter.query)
+		w := request(handler, http.MethodGet, url, "", "")
+		var result struct {
+			Blocks       []timeline.CalendarBlock
+			DailyUsage   []ingest.DailyUsage
+			AccountUsage index.AccountUsage
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || w.Code != http.StatusOK {
+			t.Fatalf("filtered blocks status=%d: %v", w.Code, err)
+		}
+		if len(result.Blocks) != filter.want || len(result.DailyUsage) != 0 || len(result.AccountUsage.Days) != 0 {
+			t.Fatalf("unexpected filtered result for %s: %+v", filter.query, result)
+		}
+	}
 	if _, err := db.Exec("UPDATE blocks SET last=?,end=? WHERE source='/logs/codex.jsonl'", start+100000, start+100000); err != nil {
 		t.Fatal(err)
 	}

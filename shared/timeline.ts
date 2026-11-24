@@ -85,11 +85,12 @@ export type Summary = Metrics &
     accountUsage: AccountUsage;
     totalMs: number;
     sessionCount: number;
+    missingTokenBreakdownSessions?: number;
     agents: GroupTotal[];
     projects: GroupTotal[];
     days: DayTotal[];
   };
-export type FilterOptions = { agents: string[]; projects: string[] };
+export type FilterOptions = { agents: string[]; projects: string[]; pcs: string[] };
 
 type PeriodTotal = Cost & {
   start: number;

@@ -288,9 +288,14 @@
           "items": { "type": "string" },
           "description": "Repeat projects= for each exact project name"
         },
+        "pcs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Repeat pcs= to match any selected PC. Account-wide and daily usage are omitted from the results when filtering by PC."
+        },
         "q": { "type": "string", "description": "Substring search in title, project, and cwd" }
       },
-      "description": "Ranges have end > start and span at most 366 days. Session filters do not affect daily usage totals."
+      "description": "Ranges have end > start and span at most 366 days."
     },
     "Metrics": {
       "type": "object",
@@ -459,6 +464,7 @@
       "properties": {
         "totalMs": { "$ref": "#/$defs/Counter" },
         "sessionCount": { "$ref": "#/$defs/Counter" },
+        "missingTokenBreakdownSessions": { "$ref": "#/$defs/Counter" },
         "agents": { "type": "array", "items": { "$ref": "#/$defs/Group" } },
         "projects": { "type": "array", "items": { "$ref": "#/$defs/Group" } },
         "history": {
@@ -474,9 +480,10 @@
     },
     "Filters": {
       "type": "object",
-      "required": ["agents", "projects"],
+      "required": ["agents", "projects", "pcs"],
       "properties": {
         "agents": { "type": "array", "items": { "type": "string" } },
+        "pcs": { "type": "array", "items": { "type": "string" } },
         "projects": { "type": "array", "items": { "type": "string" } }
       }
     },

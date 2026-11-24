@@ -15,17 +15,21 @@ const monthTick = new Intl.DateTimeFormat("ja-JP", {
 export function MonthChart({
   months,
   openMonth,
+  showAccount,
 }: {
   months: DashboardSummary["history"]["months"];
   openMonth: (month: number) => void;
+  showAccount: boolean;
 }) {
   const [metric, setMetric] = useState<ChartMetric>("hours");
   const data = monthSeries(months);
   const series =
     metric === "tokens"
       ? [
-          { name: "tokens", label: "ローカル", color: "cyan.5" },
-          { name: "accountTokens", label: "Codexアカウント", color: "violet.5" },
+          { name: "tokens", label: "セッション", color: "cyan.5" },
+          ...(showAccount
+            ? [{ name: "accountTokens", label: "Codexアカウント", color: "violet.5" }]
+            : []),
         ]
       : [
           {
@@ -68,7 +72,7 @@ export function MonthChart({
             dataKey="start"
             series={series}
             maxBarWidth={38}
-            withLegend={metric === "tokens"}
+            withLegend={metric === "tokens" && showAccount}
             legendProps={{ align: "left", verticalAlign: "top" }}
             valueFormatter={(value) => chartValue(metric, value)}
             xAxisProps={{

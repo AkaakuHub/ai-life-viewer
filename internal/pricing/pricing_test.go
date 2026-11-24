@@ -67,6 +67,10 @@ func TestCatalogUsesDynamicRatesAndLeavesUnknownCostsUnset(t *testing.T) {
 	if c.Estimate("custom", "", nil, &cached, &output) != nil {
 		t.Error("missing input should be unpriced")
 	}
+	zero := int64(0)
+	if cost := c.Estimate("unknown", "", &zero, nil, &zero); cost == nil || *cost != 0 {
+		t.Errorf("known zero usage should cost zero: %v", cost)
+	}
 }
 
 func TestPricesModelAndTierBreakdownWithoutChargingSessionTotalsAgain(t *testing.T) {

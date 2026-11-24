@@ -58,10 +58,10 @@ export function Filters({
             <Loader size="xs" role="status" aria-label="絞り込みの候補を読み込み中" />
           </Group>
         )}
-        {(["agents", "projects"] as const).map((key) => (
+        {(["pcs", "agents", "projects"] as const).map((key) => (
           <MultiSelect
             key={key}
-            label={key === "agents" ? "エージェント" : "プロジェクト"}
+            label={{ pcs: "記録元PC", agents: "エージェント", projects: "プロジェクト" }[key]}
             data={options?.[key] ?? value[key]}
             value={value[key]}
             disabled={loading}
@@ -75,7 +75,7 @@ export function Filters({
           variant="default"
           mih={42}
           style={{ alignSelf: "start" }}
-          onClick={() => change({ agents: [], projects: [], q: "" })}
+          onClick={() => change({ agents: [], projects: [], pcs: [], q: "" })}
         >
           解除
         </Button>

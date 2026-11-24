@@ -5,7 +5,7 @@ export type AppView = View | "top";
 export type Selection = FilterOptions & { q: string };
 export type Screen = { view: AppView; anchor: number; selection: Selection };
 
-const keys = ["view", "date", "agents", "projects", "q"] as const;
+const keys = ["view", "date", "agents", "projects", "pcs", "q"] as const;
 
 export function restoreScreen(url: URLSearchParams, saved: string | null, now: number): Screen {
   const params = keys.some((key) => url.has(key)) ? url : new URLSearchParams(saved ?? "");
@@ -18,6 +18,7 @@ export function restoreScreen(url: URLSearchParams, saved: string | null, now: n
     selection: {
       agents: params.getAll("agents").filter(Boolean),
       projects: params.getAll("projects").filter(Boolean),
+      pcs: params.getAll("pcs").filter(Boolean),
       q: params.get("q") ?? "",
     },
   };
@@ -31,6 +32,7 @@ export function filterParams(selection: Selection) {
   const params = new URLSearchParams();
   for (const agent of selection.agents) params.append("agents", agent);
   for (const project of selection.projects) params.append("projects", project);
+  for (const pc of selection.pcs) params.append("pcs", pc);
   if (selection.q) params.set("q", selection.q);
   return params;
 }

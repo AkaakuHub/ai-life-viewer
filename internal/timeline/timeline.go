@@ -22,28 +22,29 @@ type ModelUsage struct {
 
 type Block struct {
 	Metrics
-	PCIDs            []string     `json:"pcIds"`
-	UsageByModel     []ModelUsage `json:"usageByModel,omitempty"`
-	ServiceTier      string       `json:"serviceTier,omitempty"`
-	IncompleteCost   bool         `json:"incompleteCost,omitempty"`
-	EstimatedCostUSD *float64     `json:"estimatedCostUsd,omitempty"`
-	Source           string       `json:"-"`
-	Session          string       `json:"session,omitempty"`
-	ReasoningEffort  string       `json:"reasoningEffort,omitempty"`
-	GitSHA           string       `json:"gitSha,omitempty"`
-	GitOriginURL     string       `json:"gitOriginUrl,omitempty"`
-	Provenance       string       `json:"provenance,omitempty"`
-	Preview          string       `json:"preview,omitempty"`
-	ID               int64        `json:"id"`
-	Agent            string       `json:"agent"`
-	Title            string       `json:"title"`
-	Project          string       `json:"project"`
-	CWD              string       `json:"cwd"`
-	Model            string       `json:"model"`
-	Branch           string       `json:"branch"`
-	Tokens           *int64       `json:"tokens"`
-	Start            int64        `json:"start"`
-	End              int64        `json:"end"`
+	MissingTokenBreakdown bool         `json:"-"`
+	PCIDs                 []string     `json:"pcIds"`
+	UsageByModel          []ModelUsage `json:"usageByModel,omitempty"`
+	ServiceTier           string       `json:"serviceTier,omitempty"`
+	IncompleteCost        bool         `json:"incompleteCost,omitempty"`
+	EstimatedCostUSD      *float64     `json:"estimatedCostUsd,omitempty"`
+	Source                string       `json:"-"`
+	Session               string       `json:"session,omitempty"`
+	ReasoningEffort       string       `json:"reasoningEffort,omitempty"`
+	GitSHA                string       `json:"gitSha,omitempty"`
+	GitOriginURL          string       `json:"gitOriginUrl,omitempty"`
+	Provenance            string       `json:"provenance,omitempty"`
+	Preview               string       `json:"preview,omitempty"`
+	ID                    int64        `json:"id"`
+	Agent                 string       `json:"agent"`
+	Title                 string       `json:"title"`
+	Project               string       `json:"project"`
+	CWD                   string       `json:"cwd"`
+	Model                 string       `json:"model"`
+	Branch                string       `json:"branch"`
+	Tokens                *int64       `json:"tokens"`
+	Start                 int64        `json:"start"`
+	End                   int64        `json:"end"`
 }
 
 type DayTotal struct {
@@ -79,11 +80,12 @@ type Group struct {
 type Summary struct {
 	Metrics
 	Cost
-	Total        int64      `json:"totalMs"`
-	SessionCount int        `json:"sessionCount"`
-	Agents       []Group    `json:"agents"`
-	Projects     []Group    `json:"projects"`
-	Days         []DayTotal `json:"days"`
+	MissingTokenBreakdownSessions int        `json:"missingTokenBreakdownSessions,omitempty"`
+	Total                         int64      `json:"totalMs"`
+	SessionCount                  int        `json:"sessionCount"`
+	Agents                        []Group    `json:"agents"`
+	Projects                      []Group    `json:"projects"`
+	Days                          []DayTotal `json:"days"`
 }
 
 func Summarize(blocks []Block, start, end int64) Summary {
@@ -114,6 +116,9 @@ func Summarize(blocks []Block, start, end int64) Summary {
 		if !seen[key] {
 			summary.Metrics.add(block.Metrics)
 			summary.Cost.add(block.EstimatedCostUSD, block.IncompleteCost)
+			if block.MissingTokenBreakdown {
+				summary.MissingTokenBreakdownSessions++
+			}
 			agent.Cost.add(block.EstimatedCostUSD, block.IncompleteCost)
 			project.Cost.add(block.EstimatedCostUSD, block.IncompleteCost)
 			seen[key] = true

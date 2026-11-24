@@ -27,8 +27,8 @@ export function AppHeader({
   openSummary: () => void;
 }) {
   const calendar = screen.view !== "top";
-  const { agents, projects, q } = screen.selection;
-  const filterCount = agents.length + projects.length + Number(Boolean(q.trim()));
+  const { agents, projects, pcs, q } = screen.selection;
+  const filterCount = agents.length + projects.length + pcs.length + Number(Boolean(q.trim()));
 
   function link(view: AppView) {
     return {
