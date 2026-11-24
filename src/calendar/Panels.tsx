@@ -222,6 +222,7 @@ export function BlockPanel({ block, close }: { block?: Block; close: () => void 
             fields={[
               ["エージェント", block.agent],
               ["プロジェクト", block.project],
+              ["記録元のPC", block.pcIds.join("、") || "不明"],
               ["作業ディレクトリ", block.cwd],
               ["時間帯", blockTime(block)],
               ["実稼働", duration(block.activeMs)],

@@ -315,6 +315,7 @@
       "type": "object",
       "required": [
         "id",
+        "pcIds",
         "agent",
         "title",
         "project",
@@ -335,6 +336,7 @@
         "agent": { "type": "string" },
         "title": { "type": "string" },
         "session": { "type": "string" },
+        "pcIds": { "type": "array", "items": { "type": "string" } },
         "serviceTier": { "type": "string" },
         "usageByModel": { "type": "array", "items": { "$ref": "#/$defs/ModelUsage" } },
         "incompleteCost": {

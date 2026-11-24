@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -97,18 +99,18 @@ func TestIngestMergesExistingSessionAndUpdatesWithoutDuplicates(t *testing.T) {
 		}
 		return result.Blocks, result.DailyUsage
 	}
-	submit := func(end int64) {
+	submit := func(pcID string, end int64) {
 		t.Helper()
-		body := fmt.Sprintf(`{"pcId":"test-pc","records":[{"agent":"cx","session":"shared","title":"Remote",
+		body := fmt.Sprintf(`{"pcId":%q,"records":[{"agent":"cx","session":"shared","title":"Remote",
 			"tokens":{"input":150},"blocks":[{"start":%d,"end":%d},{"start":%d,"end":%d}]}],
 			"dailyUsage":[{"agent":"cx","day":"2026-11-23","tokens":40}]}`,
-			start+30000, start+90000, start+120000, end)
+			pcID, start+30000, start+90000, start+120000, end)
 		w := request(handler, http.MethodPost, "/api/v1/ingest", body, testToken)
 		if w.Code != 200 {
 			t.Fatalf("ingest status=%d: %s", w.Code, w.Body.String())
 		}
 	}
-	submit(start + 180000)
+	submit("test-pc", start+180000)
 	first, daily := read()
 	if len(first) != 1 || first[0].Start != start || first[0].End != start+180000 ||
 		first[0].ActiveMS != 150000 || first[0].WallMS != 180000 ||
@@ -116,19 +118,28 @@ func TestIngestMergesExistingSessionAndUpdatesWithoutDuplicates(t *testing.T) {
 		first[0].InputTokens == nil || *first[0].InputTokens != 150 || len(daily) != 1 || daily[0].Tokens == nil || *daily[0].Tokens != 40 {
 		t.Fatalf("unexpected merge: %+v %+v", first, daily)
 	}
-	submit(start + 240000)
+	submit("second-pc", start+240000)
 	statusResponse := request(handler, http.MethodGet, "/api/status", "", "")
 	var status index.Status
 	if err := json.Unmarshal(statusResponse.Body.Bytes(), &status); err != nil {
 		t.Fatal(err)
 	}
 	if statusResponse.Code != http.StatusOK || status.ServerPCID == "" ||
-		len(status.IngestPCs) != 1 || status.IngestPCs[0].ID != "test-pc" || status.IngestPCs[0].LastIngest <= 0 {
+		len(status.IngestPCs) != 2 || status.IngestPCs[1].ID != "test-pc" || status.IngestPCs[1].LastIngest <= 0 {
 		t.Fatalf("unexpected PC status: %+v", status)
 	}
 	second, _ := read()
 	if len(second) != 1 || second[0].ID != first[0].ID || second[0].End != start+240000 || second[0].ActiveMS != 210000 {
 		t.Fatalf("unexpected upsert: %+v", second)
+	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pcID := range []string{hostname, "second-pc", "test-pc"} {
+		if !slices.Contains(second[0].PCIDs, pcID) {
+			t.Fatalf("PC %q missing from %v", pcID, second[0].PCIDs)
+		}
 	}
 	if _, err := db.Exec("UPDATE blocks SET last=?,end=? WHERE source='/logs/codex.jsonl'", start+100000, start+100000); err != nil {
 		t.Fatal(err)

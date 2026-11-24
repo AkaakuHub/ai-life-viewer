@@ -47,6 +47,7 @@ type ModelUsage = {
 };
 
 export type Block = Metrics & {
+  pcIds: string[];
   serviceTier?: string;
   usageByModel?: ModelUsage[];
   incompleteCost?: boolean;

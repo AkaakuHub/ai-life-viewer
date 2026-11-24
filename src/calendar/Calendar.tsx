@@ -118,13 +118,15 @@ export function Calendar({
         blocks.map((block) => {
           const color = blockColor(block.agent, block.project);
           const id = `${block.id}:${block.start}`;
+          const origin = `${block.project} · ${block.pcIds.join("、") || "PC不明"}`;
+          const title = plainText(block.title);
           return [
             id,
             {
               block,
               event: {
                 id: id,
-                title: plainText(block.title) || block.project,
+                title: title ? `${origin} · ${title}` : origin,
                 start: new Date(block.start),
                 end: new Date(block.end),
                 color: `${color}80`,

@@ -15,7 +15,7 @@ func (s *Store) Ingest(batch ingest.Batch) error {
 	}
 	defer tx.Rollback()
 	for _, record := range batch.Records {
-		if err := mergeRecord(tx, record); err != nil {
+		if err := mergeRecord(tx, record, batch.PCID); err != nil {
 			return err
 		}
 	}
@@ -35,7 +35,7 @@ func (s *Store) Ingest(batch ingest.Batch) error {
 	return tx.Commit()
 }
 
-func mergeRecord(tx *sql.Tx, r ingest.Record) error {
+func mergeRecord(tx *sql.Tx, r ingest.Record, pcID string) error {
 	session := r.SessionID()
 	key := "session:" + r.Agent + ":" + session
 	breakdown, err := modelUsageJSON(r.UsageByModel)
@@ -70,6 +70,10 @@ func mergeRecord(tx *sql.Tx, r ingest.Record) error {
 		tokens.Input, tokens.CachedInput, tokens.Output, tokens.Reasoning,
 		r.TurnCount, r.ToolCallCount, r.ReasoningEffort, r.ServiceTier, breakdown)
 	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO session_pcs(source,pc_id) VALUES(?,?)
+		ON CONFLICT(source,pc_id) DO NOTHING`, key, pcID); err != nil {
 		return err
 	}
 	stmt, err := tx.Prepare(`INSERT INTO session_intervals(source,start,end) VALUES(?,?,?)

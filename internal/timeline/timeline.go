@@ -21,6 +21,7 @@ type ModelUsage struct {
 
 type Block struct {
 	Metrics
+	PCIDs            []string     `json:"pcIds"`
 	UsageByModel     []ModelUsage `json:"usageByModel,omitempty"`
 	ServiceTier      string       `json:"serviceTier,omitempty"`
 	IncompleteCost   bool         `json:"incompleteCost,omitempty"`

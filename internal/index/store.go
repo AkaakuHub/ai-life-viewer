@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"agent-timeline/internal/timeline"
@@ -58,6 +59,11 @@ func initialize(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS ingest_pcs (
  pc_id TEXT PRIMARY KEY, last_ingest INTEGER NOT NULL
  );
+		CREATE TABLE IF NOT EXISTS session_pcs (
+			source TEXT NOT NULL REFERENCES sources(key) ON DELETE CASCADE,
+			pc_id TEXT NOT NULL,
+			PRIMARY KEY(source,pc_id)
+		) WITHOUT ROWID;
  CREATE TABLE IF NOT EXISTS codex (
 			session TEXT PRIMARY KEY, title TEXT NOT NULL, cwd TEXT NOT NULL,
 			model TEXT NOT NULL, branch TEXT NOT NULL, tokens INTEGER NOT NULL, project TEXT NOT NULL
@@ -146,6 +152,10 @@ func (s *Store) Options() (Options, error) {
 }
 
 func (s *Store) Blocks(start, end int64, options Options, search string) ([]timeline.Block, error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
 	agents, err := json.Marshal(options.Agents)
 	if err != nil {
 		return nil, err
@@ -158,7 +168,11 @@ func (s *Store) Blocks(start, end int64, options Options, search string) ([]time
 		source,timeline.input_tokens,timeline.cached_input_tokens,timeline.output_tokens,timeline.reasoning_tokens,timeline.turn_count,timeline.tool_call_count,
 		timeline.reasoning_effort,timeline.git_sha,timeline.git_origin_url,timeline.preview,provenance,
 		own.session, COALESCE(NULLIF(own.service_tier,''),local.service_tier,''),
-		COALESCE(NULLIF(own.usage_by_model,'[]'),local.usage_by_model,'[]')
+		COALESCE(NULLIF(own.usage_by_model,'[]'),local.usage_by_model,'[]'),
+		(SELECT json_group_array(pc_id) FROM session_pcs WHERE source=own.key),
+		(own.key<>'session:'||own.agent||':'||own.session OR EXISTS (
+			SELECT 1 FROM sources m JOIN blocks b ON b.source=m.key
+			WHERE m.agent=own.agent AND m.session=own.session))
 		FROM timeline
 		JOIN sources own ON own.key=timeline.source
 		LEFT JOIN sources local ON own.key='session:'||own.agent||':'||own.session
@@ -177,11 +191,18 @@ func (s *Store) Blocks(start, end int64, options Options, search string) ([]time
 	out := []timeline.Block{}
 	for rows.Next() {
 		var b timeline.Block
-		var breakdown string
+		var breakdown, pcIDs string
+		var hasLocal bool
 		if err := rows.Scan(&b.ID, &b.Agent, &b.Title, &b.Project, &b.CWD, &b.Model, &b.Branch, &b.Tokens, &b.Start, &b.End,
 			&b.Source, &b.InputTokens, &b.CachedInputTokens, &b.OutputTokens, &b.ReasoningTokens, &b.TurnCount, &b.ToolCallCount,
-			&b.ReasoningEffort, &b.GitSHA, &b.GitOriginURL, &b.Preview, &b.Provenance, &b.Session, &b.ServiceTier, &breakdown); err != nil {
+			&b.ReasoningEffort, &b.GitSHA, &b.GitOriginURL, &b.Preview, &b.Provenance, &b.Session, &b.ServiceTier, &breakdown, &pcIDs, &hasLocal); err != nil {
 			return nil, err
+		}
+		if err := json.Unmarshal([]byte(pcIDs), &b.PCIDs); err != nil {
+			return nil, err
+		}
+		if hasLocal && !slices.Contains(b.PCIDs, hostname) {
+			b.PCIDs = append(b.PCIDs, hostname)
 		}
 		if breakdown != "[]" {
 			if err := json.Unmarshal([]byte(breakdown), &b.UsageByModel); err != nil {
