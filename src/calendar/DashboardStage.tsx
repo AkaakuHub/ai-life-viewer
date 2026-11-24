@@ -5,9 +5,12 @@ import { DashboardYen } from "./DashboardYen.tsx";
 import { usd } from "./format.ts";
 import "./dashboard-stage.css";
 
-function amountDigits(value: string, offset = 0) {
+function amountDigits(value: string, laterDigits = 0) {
   return Array.from(value, (digit, index) => (
-    <span key={offset + index} style={{ animationDelay: `${(offset + index) * 55}ms` }}>
+    <span
+      key={index}
+      style={{ animationDelay: `${(laterDigits + value.length - 1 - index) * 55}ms` }}
+    >
       {digit}
     </span>
   ));
@@ -28,6 +31,7 @@ export function DashboardStage({
 }) {
   const amount = usd(cost);
   const [whole, cents] = amount.split(".");
+  const fraction = cents ? `.${cents}` : "";
   return (
     <Box className="dashboard-stage">
       <div className="dashboard-stage__center">
@@ -44,12 +48,12 @@ export function DashboardStage({
           <div className="dashboard-stage__amount">
             <VisuallyHidden>{amount}</VisuallyHidden>
             <span className="dashboard-stage__depth" aria-hidden="true">
-              {amountDigits(whole)}
-              {cents && <small>{amountDigits(`.${cents}`, whole.length)}</small>}
+              {amountDigits(whole, fraction.length)}
+              {fraction && <small>{amountDigits(fraction)}</small>}
             </span>
             <span className="dashboard-stage__face" aria-hidden="true">
-              {amountDigits(whole)}
-              {cents && <small>{amountDigits(`.${cents}`, whole.length)}</small>}
+              {amountDigits(whole, fraction.length)}
+              {fraction && <small>{amountDigits(fraction)}</small>}
             </span>
           </div>
         )}
