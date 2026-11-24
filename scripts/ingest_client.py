@@ -26,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -1344,7 +1345,7 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("AGENT_TIMELINE_INGEST_TOKEN", ""),
         help="Bearer token (or env AGENT_TIMELINE_INGEST_TOKEN)",
     )
-    ap.add_argument("--pc-id", required=True, help="Unique identifier for this PC")
+    ap.add_argument("--pc-id", help="Unique identifier for this PC (default: hostname)")
     ap.add_argument("--token-file", help="Path to a file containing the Bearer token")
     ap.add_argument(
         "--providers",
@@ -1375,8 +1376,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="Parse and print summary without sending")
     ap.add_argument("-v", "--verbose", action="store_true", help="Print progress to stderr")
     args = ap.parse_args(argv)
-    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}", args.pc_id):
-        ap.error("--pc-id must start with a letter or number and contain 1–64 letters, numbers, dots, underscores or hyphens")
+    pc_id = args.pc_id if args.pc_id is not None else socket.gethostname()
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}", pc_id):
+        ap.error("set --pc-id to 1–64 ASCII letters, numbers, dots, underscores or hyphens, starting with a letter or number")
 
     providers = parse_providers(args.providers)
     gap_ms = max(1, args.gap_seconds) * 1000
@@ -1438,7 +1440,7 @@ def main(argv: list[str] | None = None) -> int:
     endpoint = normalize_endpoint(args.url)
     ingested = 0
     for idx, batch in enumerate(batches, 1):
-        res = post_batch(endpoint, batch, token, args.pc_id)
+        res = post_batch(endpoint, batch, token, pc_id)
         ingested += int(res.get("records", 0))
         if args.verbose:
             print(f"Batch {idx}/{len(batches)}: sent {len(batch)} -> {res}", file=sys.stderr)

@@ -32,10 +32,10 @@
 
 ### 1. ドライラン（送信せずに件数・期間を確認）
 
-すべての実行で `--pc-id` が必須です。例の `office-pc` は、実行するPCごとに異なる識別子に置き換えてください。同じPCでは再送時も同じ識別子を指定します。サーバー本体はホスト名で表示されます。
+Windows・macOS・Linuxでは、既定でOSのホスト名をPC識別子に使います。ホスト名が重複する場合や、半角英数字で始まる1〜64文字の半角英数字・ドット・アンダースコア・ハイフンという条件を満たさない場合は、`--pc-id office-pc`のようにPC固有の識別子を指定してください。サーバー本体はホスト名で表示されます。
 
 ```bash
-python3 scripts/ingest_client.py --pc-id office-pc --dry-run
+python3 scripts/ingest_client.py --dry-run
 ```
 
 ### 2. 全プロバイダーを一括送信（棚卸し・過去分バックフィル）
@@ -44,7 +44,7 @@ python3 scripts/ingest_client.py --pc-id office-pc --dry-run
 export AGENT_TIMELINE_URL="https://vcn-tokyo-main.tail4c0963.ts.net:14443"
 export AGENT_TIMELINE_INGEST_TOKEN="<サーバーの ingest.token>"
 
-python3 scripts/ingest_client.py --pc-id office-pc -v
+python3 scripts/ingest_client.py -v
 ```
 
 識別子の導入前に送信した履歴も、同じエージェントとセッションIDで再送すると既存の記録が更新され、送信元PCが一覧に追加されます。
@@ -54,7 +54,6 @@ python3 scripts/ingest_client.py --pc-id office-pc -v
 ```bash
 python3 scripts/ingest_client.py \
   --url "https://vcn-tokyo-main.tail4c0963.ts.net:14443" \
-  --pc-id office-pc \
   --token-file /path/to/ingest.token \
   -v
 ```
@@ -63,10 +62,10 @@ python3 scripts/ingest_client.py \
 
 ```bash
 # Codex と Claude Code / GLM のみ送信
-python3 scripts/ingest_client.py --pc-id office-pc --providers cx,cc,glm -v
+python3 scripts/ingest_client.py --providers cx,cc,glm -v
 
 # 指定日（JST）以降に更新されたセッションのみ送信
-python3 scripts/ingest_client.py --pc-id office-pc --since 2026-11-01 -v
+python3 scripts/ingest_client.py --since 2026-11-01 -v
 ```
 
 ## テスト
