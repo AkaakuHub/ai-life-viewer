@@ -10,7 +10,6 @@ import (
 )
 
 type AccountUsage struct {
-	SavedAt int64                 `json:"savedAt,omitempty"`
 	Days    []accountusage.Bucket `json:"days"`
 	Summary *accountusage.Summary `json:"summary,omitempty"`
 }
@@ -18,9 +17,9 @@ type AccountUsage struct {
 func (s *Store) AccountUsage(start, end int64) (AccountUsage, error) {
 	out := AccountUsage{Days: []accountusage.Bucket{}}
 	var summary accountusage.Summary
-	err := s.db.QueryRow(`SELECT current_streak_days,lifetime_tokens,longest_running_turn_sec,longest_streak_days,peak_daily_tokens,updated_at
+	err := s.db.QueryRow(`SELECT current_streak_days,lifetime_tokens,longest_running_turn_sec,longest_streak_days,peak_daily_tokens
 		FROM usage_summary WHERE id=1`).Scan(&summary.CurrentStreakDays, &summary.LifetimeTokens,
-		&summary.LongestRunningTurnSec, &summary.LongestStreakDays, &summary.PeakDailyTokens, &out.SavedAt)
+		&summary.LongestRunningTurnSec, &summary.LongestStreakDays, &summary.PeakDailyTokens)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return out, err
 	}

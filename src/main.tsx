@@ -137,13 +137,6 @@ function App() {
               summary={dashboard.data}
               failed={dashboard.error}
               pcs={selection.pcs}
-              codexAccount={
-                selection.agents.length === 1 &&
-                selection.agents[0] === "cx" &&
-                selection.projects.length === 0 &&
-                selection.pcs.length === 0 &&
-                !selection.q.trim()
-              }
               openMonth={(day) => drillDown("month", day)}
             />
           </Suspense>

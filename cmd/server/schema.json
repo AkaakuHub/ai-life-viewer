@@ -402,7 +402,6 @@
       "required": ["days"],
       "description": "Codex account usage: the positive cx rows of dailyUsage, and optional account-wide totals. These rows are the same data, not extra tokens.",
       "properties": {
-        "savedAt": { "$ref": "#/$defs/Timestamp" },
         "days": {
           "type": "array",
           "items": {
