@@ -53,11 +53,7 @@ func SummarizeHistory(start int64, blocks []Block, days []DayTotal, account map[
 	dailyTokens := make(map[int64]int64)
 	for _, block := range first {
 		month, year := periodTotals(months, years, time.UnixMilli(block.Start).In(JST))
-		tokens := block.Tokens
-		if tokens == nil && block.InputTokens != nil && block.OutputTokens != nil {
-			sum := *block.InputTokens + *block.OutputTokens
-			tokens = &sum
-		}
+		tokens := sessionTokens(block)
 		if tokens != nil {
 			addTokens(&history.Tokens, *tokens)
 			dailyTokens[midnight(block.Start)] += *tokens
@@ -76,6 +72,18 @@ func SummarizeHistory(start int64, blocks []Block, days []DayTotal, account map[
 	}
 	history.Months, history.Years = orderedPeriods(months), orderedPeriods(years)
 	return history
+}
+
+func sessionTokens(block Block) *int64 {
+	if block.Agent != "cx" && block.Tokens != nil {
+		return block.Tokens
+	}
+	if block.InputTokens == nil || block.OutputTokens == nil {
+		return nil
+	}
+	// Codex thread metadata can only supply tokens_used, without a recorded input/output split.
+	total := *block.InputTokens + *block.OutputTokens
+	return &total
 }
 
 func periodTotals(months, years map[int64]*PeriodTotal, d time.Time) (*PeriodTotal, *PeriodTotal) {

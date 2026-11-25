@@ -10,9 +10,10 @@ func TestHistorySplitsTimeAndCountsSessionTotalsOnlyAtFirstActivity(t *testing.T
 	dec := time.Date(2026, 12, 1, 0, 0, 0, 0, JST).UnixMilli()
 	hour := Day / 24
 	price, tokens := 2.5, int64(40)
+	input, output, metadataTotal := int64(30), int64(10), int64(2000)
 	blocks := []Block{
 		{Source: "one", Session: "shared", Agent: "cx", Start: jan + hour, End: jan + 2*hour, EstimatedCostUSD: &price, Tokens: &tokens},
-		{Source: "one", Session: "shared", Agent: "cx", Start: jan - hour, End: jan + hour, EstimatedCostUSD: &price, Tokens: &tokens},
+		{Source: "one", Session: "shared", Agent: "cx", Start: jan - hour, End: jan + hour, EstimatedCostUSD: &price, Tokens: &metadataTotal, Metrics: Metrics{InputTokens: &input, OutputTokens: &output}},
 		{Source: "two", Session: "shared", Agent: "cx", Start: jan + 2*hour, End: jan + 3*hour},
 	}
 	start, end := jan-hour, jan+3*hour
@@ -36,5 +37,14 @@ func TestHistorySplitsTimeAndCountsSessionTotalsOnlyAtFirstActivity(t *testing.T
 	if after.Start != jan || after.MS != 3*hour || after.Tokens != nil ||
 		after.EstimatedCostUSD != nil || after.AccountTokens == nil || *after.AccountTokens != 100 {
 		t.Fatalf("unexpected January totals: %+v", after)
+	}
+}
+
+func TestHistoryExcludesCodexMetadataOnlyTokenCounts(t *testing.T) {
+	tokens := int64(2000)
+	blocks := []Block{{Agent: "cx", Provenance: "metadata", Tokens: &tokens, Start: 1, End: 2}}
+	history := SummarizeHistory(0, blocks, []DayTotal{{Day: midnight(1), MS: 1}}, nil)
+	if history.Tokens != nil || history.PeakDailyTokens != nil || history.Months[0].Tokens != nil {
+		t.Fatalf("counted metadata-only tokens: %+v", history)
 	}
 }

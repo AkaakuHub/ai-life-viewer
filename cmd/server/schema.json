@@ -487,7 +487,10 @@
           "required": ["start", "months", "years", "longestStreakDays"],
           "properties": {
             "start": { "$ref": "#/$defs/Timestamp" },
-            "tokens": { "$ref": "#/$defs/Counter" },
+            "tokens": {
+              "$ref": "#/$defs/Counter",
+              "description": "Recorded tokens across distinct matching sessions. Codex requires recorded input and output counts."
+            },
             "peakDailyTokens": {
               "$ref": "#/$defs/Counter",
               "description": "Maximum daily sum of session tokens, attributed to each session's first activity date in JST."
