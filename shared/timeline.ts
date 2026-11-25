@@ -17,6 +17,7 @@ export type UsageDay = {
 };
 
 type AccountUsage = {
+  savedAt?: number;
   days: UsageDay[];
   summary?: {
     currentStreakDays: number;

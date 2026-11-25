@@ -55,7 +55,6 @@ func main() {
 	}
 	ctx := context.Background()
 	go store.Watch(ctx, home)
-	go store.WatchAccountUsage(ctx, dataDir)
 	rates := pricing.Load(filepath.Join(home, ".t3/userdata/usage-model-rates.json"))
 	go rates.Watch(ctx)
 	mux := http.NewServeMux()

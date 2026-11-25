@@ -1,7 +1,7 @@
 import "@mantine/charts/styles.css";
 import { Alert, Box, Card, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
-import type { DashboardSummary } from "../../shared/timeline.ts";
+import { dayKey, type DashboardSummary } from "../../shared/timeline.ts";
 import { Breakdown } from "./Breakdown.tsx";
 import { DashboardCount } from "./DashboardCount.tsx";
 import { DashboardStage } from "./DashboardStage.tsx";
@@ -18,11 +18,13 @@ export default function Dashboard({
   summary,
   failed,
   pcs,
+  codexAccount,
   openMonth,
 }: {
   summary?: DashboardSummary;
   failed?: boolean;
   pcs: string[];
+  codexAccount: boolean;
   openMonth: (day: number) => void;
 }) {
   if (!summary)
@@ -36,6 +38,11 @@ export default function Dashboard({
 
   const missingBreakdown = summary.missingTokenBreakdownSessions ?? 0;
   const missingRates = (summary.unpricedSessions ?? 0) - missingBreakdown;
+  const account = codexAccount ? summary.accountUsage.summary : undefined;
+  const savedAt = summary.accountUsage.savedAt;
+  const months = account
+    ? summary.history.months.map((month) => ({ ...month, tokens: month.accountTokens }))
+    : summary.history.months;
   const cards: Array<{ label: string; value: ReactNode }> = [
     { label: "累計稼働時間", value: hours(summary.totalMs) },
     { label: "総セッション", value: <DashboardCount value={summary.sessionCount} /> },
@@ -48,9 +55,18 @@ export default function Dashboard({
         </>
       ),
     },
-    { label: "累計トークン", value: <DashboardCount value={summary.history.tokens} /> },
-    { label: "最長連続利用", value: `${summary.history.longestStreakDays}日` },
-    { label: "1日最大トークン", value: <DashboardCount value={summary.history.peakDailyTokens} /> },
+    {
+      label: account && savedAt ? `公式累計トークン（${dayKey(savedAt)}保存）` : "記録済みトークン",
+      value: <DashboardCount value={account?.lifetimeTokens ?? summary.history.tokens} />,
+    },
+    {
+      label: "最長連続利用",
+      value: `${account?.longestStreakDays ?? summary.history.longestStreakDays}日`,
+    },
+    {
+      label: "1日最大トークン",
+      value: <DashboardCount value={account?.peakDailyTokens ?? summary.history.peakDailyTokens} />,
+    },
   ];
   return (
     <Box
@@ -89,12 +105,12 @@ export default function Dashboard({
             </Card>
           ))}
         </DashboardStage>
-        <MonthChart months={summary.history.months} openMonth={openMonth} />
+        <MonthChart months={months} openMonth={openMonth} />
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing={{ base: "xs", sm: "md" }}>
           <AgentChart agents={summary.agents} />
           <ProjectChart projects={summary.projects} />
         </SimpleGrid>
-        <DashboardMonths months={summary.history.months} openMonth={openMonth} />
+        <DashboardMonths months={months} openMonth={openMonth} />
         <IngestPCs />
         <SimpleGrid cols={{ base: 1, md: 2 }}>
           <Breakdown title="エージェント別" totals={summary.agents} />

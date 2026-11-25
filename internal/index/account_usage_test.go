@@ -5,11 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"agent-timeline/internal/accountusage"
 	"agent-timeline/internal/timeline"
 )
 
-func TestUsageCacheCoexistsWithDetailedBlocksAndSurvivesThrottle(t *testing.T) {
+func TestStoredAccountUsageCoexistsWithDetailedBlocks(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -20,15 +19,10 @@ func TestUsageCacheCoexistsWithDetailedBlocksAndSurvivesThrottle(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 6, 1, 0, 0, 0, 0, timeline.JST)
-	store := Store{db}
-	if ok, err := store.claimUsageRefresh(now); err != nil || !ok {
-		t.Fatalf("initial refresh: %v %v", ok, err)
-	}
-	snapshot := accountusage.Snapshot{
-		DailyUsageBuckets: []accountusage.Bucket{{StartDate: "2026-06-01", Tokens: 123}},
-		Summary:           &accountusage.Summary{LifetimeTokens: 999},
-	}
-	if err := store.saveAccountUsage(snapshot, now); err != nil {
+	if _, err := db.Exec(`
+		INSERT INTO daily_usage VALUES('cx','2026-06-01',123,1);
+		INSERT INTO usage_summary VALUES(1,0,999,0,0,0,1);
+	`); err != nil {
 		t.Fatal(err)
 	}
 	tx, err := db.Begin()
@@ -47,16 +41,10 @@ func TestUsageCacheCoexistsWithDetailedBlocksAndSurvivesThrottle(t *testing.T) {
 		t.Fatal(err)
 	}
 	restarted := Store{db}
-	if ok, err := restarted.claimUsageRefresh(now.Add(6*time.Hour - time.Millisecond)); err != nil || ok {
-		t.Fatalf("premature refresh on restart: %v %v", ok, err)
-	}
-	if ok, err := restarted.claimUsageRefresh(now.Add(6 * time.Hour)); err != nil || !ok {
-		t.Fatalf("scheduled refresh: %v %v", ok, err)
-	}
 	end := now.Add(24 * time.Hour).UnixMilli()
 	got, err := restarted.AccountUsage(now.UnixMilli(), end)
 	if err != nil || len(got.Days) != 1 || got.Days[0].Tokens != 123 || got.Summary == nil || got.Summary.LifetimeTokens != 999 {
-		t.Fatalf("unexpected cache after refresh attempt: %+v %v", got, err)
+		t.Fatalf("unexpected stored usage: %+v %v", got, err)
 	}
 	blocks, err := restarted.Blocks(now.UnixMilli(), end, Options{}, "")
 	if err != nil || len(blocks) != 1 {
