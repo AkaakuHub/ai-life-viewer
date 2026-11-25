@@ -2,7 +2,7 @@ import "@mantine/core/styles.css";
 import "@fullcalendar/react/skeleton.css";
 import "@fullcalendar/react/themes/monarch/theme.css";
 import "@fullcalendar/react/themes/monarch/palettes/blue.css";
-import { Alert, AppShell, createTheme, MantineProvider } from "@mantine/core";
+import { Alert, AppShell, createTheme, Drawer, MantineProvider, Modal } from "@mantine/core";
 import { useWindowEvent } from "@mantine/hooks";
 import { lazy, Suspense, useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -224,6 +224,10 @@ function App() {
 const theme = createTheme({
   fontFamily: 'Inter, "Noto Sans JP", system-ui, sans-serif',
   defaultRadius: "md",
+  components: {
+    Drawer: Drawer.extend({ defaultProps: { removeScrollProps: { allowPinchZoom: true } } }),
+    Modal: Modal.extend({ defaultProps: { removeScrollProps: { allowPinchZoom: true } } }),
+  },
 });
 
 const root = document.getElementById("root");
