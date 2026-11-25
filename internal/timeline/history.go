@@ -14,19 +14,30 @@ type PeriodTotal struct {
 }
 
 type History struct {
-	Start  int64         `json:"start"`
-	Months []PeriodTotal `json:"months"`
-	Years  []PeriodTotal `json:"years"`
+	Start             int64         `json:"start"`
+	Months            []PeriodTotal `json:"months"`
+	Years             []PeriodTotal `json:"years"`
+	Tokens            *int64        `json:"tokens,omitempty"`
+	PeakDailyTokens   *int64        `json:"peakDailyTokens,omitempty"`
+	LongestStreakDays int           `json:"longestStreakDays"`
 }
 
 func SummarizeHistory(start int64, blocks []Block, days []DayTotal, account map[string]int64) History {
 	months := make(map[int64]*PeriodTotal)
 	years := make(map[int64]*PeriodTotal)
+	history := History{Start: start}
+	streak := 0
 	for _, day := range days {
 		d := time.UnixMilli(day.Day).In(JST)
 		month, year := periodTotals(months, years, d)
 		month.MS += day.MS
 		year.MS += day.MS
+		if day.MS > 0 {
+			streak++
+			history.LongestStreakDays = max(history.LongestStreakDays, streak)
+		} else {
+			streak = 0
+		}
 		if tokens, ok := account[d.Format(time.DateOnly)]; ok {
 			addTokens(&month.AccountTokens, tokens)
 			addTokens(&year.AccountTokens, tokens)
@@ -39,12 +50,17 @@ func SummarizeHistory(start int64, blocks []Block, days []DayTotal, account map[
 			first[key] = block
 		}
 	}
+	dailyTokens := make(map[int64]int64)
 	for _, block := range first {
 		month, year := periodTotals(months, years, time.UnixMilli(block.Start).In(JST))
 		tokens := block.Tokens
 		if tokens == nil && block.InputTokens != nil && block.OutputTokens != nil {
 			sum := *block.InputTokens + *block.OutputTokens
 			tokens = &sum
+		}
+		if tokens != nil {
+			addTokens(&history.Tokens, *tokens)
+			dailyTokens[midnight(block.Start)] += *tokens
 		}
 		for _, period := range []*PeriodTotal{month, year} {
 			period.Cost.add(block.EstimatedCostUSD, block.IncompleteCost)
@@ -53,7 +69,13 @@ func SummarizeHistory(start int64, blocks []Block, days []DayTotal, account map[
 			}
 		}
 	}
-	return History{Start: start, Months: orderedPeriods(months), Years: orderedPeriods(years)}
+	for _, tokens := range dailyTokens {
+		if history.PeakDailyTokens == nil || tokens > *history.PeakDailyTokens {
+			history.PeakDailyTokens = &tokens
+		}
+	}
+	history.Months, history.Years = orderedPeriods(months), orderedPeriods(years)
+	return history
 }
 
 func periodTotals(months, years map[int64]*PeriodTotal, d time.Time) (*PeriodTotal, *PeriodTotal) {

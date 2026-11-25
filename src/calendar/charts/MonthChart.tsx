@@ -15,29 +15,14 @@ const monthTick = new Intl.DateTimeFormat("ja-JP", {
 export function MonthChart({
   months,
   openMonth,
-  showAccount,
 }: {
   months: DashboardSummary["history"]["months"];
   openMonth: (month: number) => void;
-  showAccount: boolean;
 }) {
   const [metric, setMetric] = useState<ChartMetric>("hours");
   const data = monthSeries(months);
-  const series =
-    metric === "tokens"
-      ? [
-          { name: "tokens", label: "セッション", color: "#82c7cf" },
-          ...(showAccount
-            ? [{ name: "accountTokens", label: "Codexアカウント", color: "violet.5" }]
-            : []),
-        ]
-      : [
-          {
-            name: metric,
-            label: metric === "hours" ? "稼働時間" : "概算料金",
-            color: metric === "hours" ? "#eabb73" : "#d98981",
-          },
-        ];
+  const color = { hours: "#eabb73", cost: "#d98981", tokens: "#82c7cf" }[metric];
+  const label = chartMetrics.find(({ value }) => value === metric)?.label ?? metric;
   const barProps: Partial<BarProps> = {
     cursor: "pointer",
     radius: [3, 3, 0, 0],
@@ -62,18 +47,13 @@ export function MonthChart({
             styles={{ label: { minHeight: 40, display: "grid", placeItems: "center" } }}
           />
         </Group>
-        {data.some(
-          (month) =>
-            month[metric] !== null || (metric === "tokens" && month.accountTokens !== null),
-        ) ? (
+        {data.some((month) => month[metric] !== null) ? (
           <BarChart
             h={{ base: 234, sm: 270 }}
             data={data}
             dataKey="start"
-            series={series}
+            series={[{ name: metric, label, color }]}
             maxBarWidth={38}
-            withLegend={metric === "tokens" && showAccount}
-            legendProps={{ align: "left", verticalAlign: "top" }}
             valueFormatter={(value) => chartValue(metric, value)}
             xAxisProps={{
               tickFormatter: (timestamp: number) => monthTick.format(timestamp),

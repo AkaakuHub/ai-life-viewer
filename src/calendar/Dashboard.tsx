@@ -34,8 +34,6 @@ export default function Dashboard({
       <DashboardSkeleton />
     );
 
-  const account = summary.accountUsage.summary;
-  const showAccount = pcs.length === 0;
   const missingBreakdown = summary.missingTokenBreakdownSessions ?? 0;
   const missingRates = (summary.unpricedSessions ?? 0) - missingBreakdown;
   const cards: Array<{ label: string; value: ReactNode }> = [
@@ -50,14 +48,10 @@ export default function Dashboard({
         </>
       ),
     },
+    { label: "累計トークン", value: <DashboardCount value={summary.history.tokens} /> },
+    { label: "最長連続利用", value: `${summary.history.longestStreakDays}日` },
+    { label: "1日最大トークン", value: <DashboardCount value={summary.history.peakDailyTokens} /> },
   ];
-  if (showAccount) {
-    cards.push(
-      { label: "Codex累計トークン", value: <DashboardCount value={account?.lifetimeTokens} /> },
-      { label: "最長連続利用", value: account ? `${account.longestStreakDays}日` : "—" },
-      { label: "1日最大トークン", value: <DashboardCount value={account?.peakDailyTokens} /> },
-    );
-  }
   return (
     <Box
       component="section"
@@ -95,20 +89,12 @@ export default function Dashboard({
             </Card>
           ))}
         </DashboardStage>
-        <MonthChart
-          months={summary.history.months}
-          openMonth={openMonth}
-          showAccount={showAccount}
-        />
+        <MonthChart months={summary.history.months} openMonth={openMonth} />
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing={{ base: "xs", sm: "md" }}>
           <AgentChart agents={summary.agents} />
           <ProjectChart projects={summary.projects} />
         </SimpleGrid>
-        <DashboardMonths
-          months={summary.history.months}
-          openMonth={openMonth}
-          showAccount={showAccount}
-        />
+        <DashboardMonths months={summary.history.months} openMonth={openMonth} />
         <IngestPCs />
         <SimpleGrid cols={{ base: 1, md: 2 }}>
           <Breakdown title="エージェント別" totals={summary.agents} />

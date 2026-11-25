@@ -11,8 +11,8 @@ test("keeps months chronological and keeps local and account usage separate", ()
     { start: previous, ms: HOUR, estimatedCostUsd: 0 },
   ]);
   assert.deepEqual(result, [
-    { start: previous, hours: 1, cost: 0, tokens: null, accountTokens: null },
-    { start: current, hours: 2, cost: null, tokens: 100, accountTokens: 150 },
+    { start: previous, hours: 1, cost: 0, tokens: null },
+    { start: current, hours: 2, cost: null, tokens: 100 },
   ]);
 });
 

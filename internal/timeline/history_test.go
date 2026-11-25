@@ -24,6 +24,10 @@ func TestHistorySplitsTimeAndCountsSessionTotalsOnlyAtFirstActivity(t *testing.T
 	if len(history.Months) != 2 || len(history.Years) != 2 {
 		t.Fatalf("unexpected periods: %+v", history)
 	}
+	if history.Tokens == nil || *history.Tokens != 40 || history.PeakDailyTokens == nil ||
+		*history.PeakDailyTokens != 40 || history.LongestStreakDays != 2 {
+		t.Fatalf("unexpected session totals: %+v", history)
+	}
 	before, after := history.Months[0], history.Months[1]
 	if before.Start != dec || before.MS != hour || before.Tokens == nil || *before.Tokens != 40 ||
 		before.EstimatedCostUSD == nil || *before.EstimatedCostUSD != 2.5 || before.AccountTokens != nil {

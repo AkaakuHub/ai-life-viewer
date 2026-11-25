@@ -12,11 +12,9 @@ const monthLabel = new Intl.DateTimeFormat("ja-JP", {
 export function DashboardMonths({
   months,
   openMonth,
-  showAccount,
 }: {
   months: DashboardSummary["history"]["months"];
   openMonth: (day: number) => void;
-  showAccount: boolean;
 }) {
   return (
     <Stack component="section" gap="xs">
@@ -44,13 +42,8 @@ export function DashboardMonths({
                   概算USD
                 </Table.Th>
                 <Table.Th scope="col" ta="right">
-                  セッションtok
+                  トークン
                 </Table.Th>
-                {showAccount && (
-                  <Table.Th scope="col" ta="right">
-                    Codex tok
-                  </Table.Th>
-                )}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -76,11 +69,6 @@ export function DashboardMonths({
                   <Table.Td ta="right">
                     <DashboardCount value={month.tokens} />
                   </Table.Td>
-                  {showAccount && (
-                    <Table.Td ta="right">
-                      <DashboardCount value={month.accountTokens} />
-                    </Table.Td>
-                  )}
                 </Table.Tr>
               ))}
             </Table.Tbody>

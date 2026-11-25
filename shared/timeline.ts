@@ -99,5 +99,12 @@ type PeriodTotal = Cost & {
   accountTokens?: number;
 };
 export type DashboardSummary = Summary & {
-  history: { start: number; months: PeriodTotal[]; years: PeriodTotal[] };
+  history: {
+    start: number;
+    months: PeriodTotal[];
+    years: PeriodTotal[];
+    tokens?: number;
+    peakDailyTokens?: number;
+    longestStreakDays: number;
+  };
 };

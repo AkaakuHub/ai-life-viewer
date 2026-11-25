@@ -484,9 +484,15 @@
         "projects": { "type": "array", "items": { "$ref": "#/$defs/Group" } },
         "history": {
           "type": "object",
-          "required": ["start", "months", "years"],
+          "required": ["start", "months", "years", "longestStreakDays"],
           "properties": {
             "start": { "$ref": "#/$defs/Timestamp" },
+            "tokens": { "$ref": "#/$defs/Counter" },
+            "peakDailyTokens": {
+              "$ref": "#/$defs/Counter",
+              "description": "Maximum daily sum of session tokens, attributed to each session's first activity date in JST."
+            },
+            "longestStreakDays": { "$ref": "#/$defs/Counter" },
             "months": { "type": "array", "items": { "$ref": "#/$defs/Trend" } },
             "years": { "type": "array", "items": { "$ref": "#/$defs/Trend" } }
           }

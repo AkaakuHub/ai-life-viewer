@@ -53,7 +53,6 @@ export function monthSeries(months: DashboardSummary["history"]["months"]) {
       hours: month.ms / HOUR,
       cost: month.estimatedCostUsd ?? null,
       tokens: month.tokens ?? null,
-      accountTokens: month.accountTokens ?? null,
     }))
     .sort((a, b) => a.start - b.start);
 }

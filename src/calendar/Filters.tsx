@@ -39,6 +39,7 @@ export function Filters({
         )}
         <TextInput
           label="検索"
+          styles={{ input: { fontSize: 16 } }}
           type="search"
           value={value.q}
           data-mantine-stop-propagation="true"
@@ -61,6 +62,7 @@ export function Filters({
         {(["pcs", "agents", "projects"] as const).map((key) => (
           <MultiSelect
             key={key}
+            styles={{ inputField: { fontSize: 16 } }}
             label={{ pcs: "記録元PC", agents: "エージェント", projects: "プロジェクト" }[key]}
             data={options?.[key] ?? value[key]}
             value={value[key]}
